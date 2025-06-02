@@ -1,0 +1,29 @@
+﻿@model IEnumerable<dynamic>
+
+<h1>Ranking zawodników</h1>
+<table class="table">
+    <thead>
+        <tr>
+            <th>Miejsce</th>
+            <th>Zawodnik</th>
+            <th>Zwycięstwa</th>
+            <th>Rozegrane mecze</th>
+        </tr>
+    </thead>
+    <tbody>
+        @{
+            var miejsce = 1;
+            foreach (var x in Model)
+            {
+                <tr>
+                    <td>@miejsce</td>
+                    <td>@x.Player.Name</td>
+                    <td>@x.Wins</td>
+                    <td>@x.Matches</td>
+                </tr>
+                miejsce++;
+            }
+        }
+    </tbody>
+</table>
+<a asp-controller="Players" asp-action="Index" class="btn btn-secondary">Powrót do listy zawodników</a>
