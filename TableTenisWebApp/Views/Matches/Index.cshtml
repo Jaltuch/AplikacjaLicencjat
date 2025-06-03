@@ -1,59 +1,68 @@
 ﻿@model IEnumerable<TableTenisWebApp.Models.Match>
 
 @{
-    ViewData["Title"] = "Index";
+    ViewData["Title"] = "Lista meczów";
 }
 
-<h1>Index</h1>
+<h1>Lista meczów</h1>
 
 <p>
-    <a asp-action="Create">Create New</a>
+    <a asp-action="Create" class="btn btn-success">Dodaj nowy mecz</a>
 </p>
-<table class="table">
+
+<table class="table table-striped">
     <thead>
         <tr>
-            <th>
-                @Html.DisplayNameFor(model => model.Player1)
-            </th>
-            <th>
-                @Html.DisplayNameFor(model => model.Player2)
-            </th>
-            <th>
-                @Html.DisplayNameFor(model => model.Score1)
-            </th>
-            <th>
-                @Html.DisplayNameFor(model => model.Score2)
-            </th>
-            <th>
-                @Html.DisplayNameFor(model => model.DatePlayed)
-            </th>
-            <th></th>
+            <th>Zawodnik 1</th>
+            <th>Zawodnik 2</th>
+            <th>Wynik</th>
+            <th>Sety</th>
+            <th>Data</th>
+            <th>Akcje</th>
         </tr>
     </thead>
     <tbody>
-@foreach (var item in Model) {
-        <tr>
-            <td>
-                    @item.Player1?.Name
-            </td>
-            <td>
-                    @item.Player2?.Name
-            </td>
-            <td>
-                @Html.DisplayFor(modelItem => item.Score1)
-            </td>
-            <td>
-                @Html.DisplayFor(modelItem => item.Score2)
-            </td>
-            <td>
-                @Html.DisplayFor(modelItem => item.DatePlayed)
-            </td>
-            <td>
-                <a asp-action="Edit" asp-route-id="@item.Id">Edit</a> |
-                <a asp-action="Details" asp-route-id="@item.Id">Details</a> |
-                <a asp-action="Delete" asp-route-id="@item.Id">Delete</a>
-            </td>
-        </tr>
-}
+        @foreach (var item in Model)
+        {
+            <tr>
+
+
+                <td>
+                    <span class="@(item.Score1 > item.Score2 ? "fw-bold" : "")">
+                        @item.Player1?.Name
+                    </span>
+                </td>
+                <td>
+                    <span class="@(item.Score2 > item.Score1 ? "fw-bold" : "")">
+                        @item.Player2?.Name
+                    </span>
+                </td>
+                <td>
+                    
+                    @item.Score1 : @item.Score2
+                </td>
+                <td>
+                    @{
+                        // Rozbijamy wyniki setów do czytelnego stringa
+                        var sety = item.SetScores?.Split(';', StringSplitOptions.RemoveEmptyEntries);
+                        if (sety != null)
+                        {
+                            for (int i = 0; i < sety.Length; i++)
+                            {
+                                @sety[i]
+
+                                @((i < sety.Length - 1) ? ", " : "")
+                            }
+                        }
+                    }
+                </td>
+                <td>@item.DatePlayed.ToString("yyyy-MM-dd")</td>
+                <td>
+                    <a asp-action="Edit" asp-route-id="@item.Id">Edytuj</a> |
+                    <a asp-action="Details" asp-route-id="@item.Id">Szczegóły</a> |
+                    <a asp-action="Delete" asp-route-id="@item.Id">Usuń</a>
+                </td>
+            </tr>
+        }
     </tbody>
 </table>

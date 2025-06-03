@@ -1,60 +1,45 @@
-﻿@model TableTenisWebApp.Models.Match
+﻿@model TableTenisWebApp.Models.ViewModels.MatchViewModel
 
 @{
-    ViewData["Title"] = "Create";
+    ViewData["Title"] = "Nowy mecz";
 }
 
-<h1>Create</h1>
+<h1>Dodaj mecz</h1>
 
-<h4>Match</h4>
-<hr />
-@Html.ValidationSummary(true, "", new { @class = "text-danger" })
-
-<div class="row">
-    <div class="col-md-4">
-        <form asp-action="Create">
-            @Html.AntiForgeryToken()
-            <div asp-validation-summary="ModelOnly" class="text-danger"></div>
-            <div class="form-group">
-                <label asp-for="Player1Id" class="control-label"></label>
-                <select asp-for="Player1Id" class ="form-control" asp-items="ViewBag.Players"></select>
-            </div>
-            <div class="form-group">
-                <label asp-for="Player2Id" class="control-label"></label>
-                <select asp-for="Player2Id" class ="form-control" asp-items="ViewBag.Players"></select>
-            </div>
-            <div class="form-group">
-                <label asp-for="SetScores" class="control-label"></label>
-                <input asp-for="SetScores" class="form-control" placeholder="np. 11:8;8:11;11:9" />
-                <span asp-validation-for="SetScores" class="text-danger"></span>
-            </div>
-
-            @*@<div class="form-group">
-                <label asp-for="Score1" class="control-label"></label>
-                <input asp-for="Score1" class="form-control" />
-                <span asp-validation-for="Score1" class="text-danger"></span>
-            </div>
-            <div class="form-group">
-                <label asp-for="Score2" class="control-label"></label>
-                <input asp-for="Score2" class="form-control" />
-                <span asp-validation-for="Score2" class="text-danger"></span>
-            </div>*@
-            <div class="form-group">
-                <label asp-for="DatePlayed" class="control-label"></label>
-                <input asp-for="DatePlayed" type="date" class="form-control" />
-                <span asp-validation-for="DatePlayed" class="text-danger"></span>
-            </div>
-            <div class="form-group">
-                <input type="submit" value="Create" class="btn btn-primary" />
-            </div>
-        </form>
+<form asp-action="Create" method="post">
+    <div class="form-group">
+        <label asp-for="Player1Id">Zawodnik 1</label>
+        <select asp-for="Player1Id" class="form-control" asp-items="ViewBag.Players"></select>
     </div>
-</div>
+    <div class="form-group">
+        <label asp-for="Player2Id">Zawodnik 2</label>
+        <select asp-for="Player2Id" class="form-control" asp-items="ViewBag.Players"></select>
+    </div>
+    <div class="form-group">
+        <label asp-for="DatePlayed">Data meczu</label>
+        <input asp-for="DatePlayed" type="date" class="form-control" />
+    </div>
+    <div class="form-group">
+        <label>Liczba setów</label>
+        <input asp-for="NumberOfSets" class="form-control" min="1" max="7" />
+        <button type="submit" formaction="@Url.Action("Create", "Matches")" formmethod="get" class="btn btn-sm btn-secondary mt-2">Generuj pola</button>
+    </div>
 
-<div>
-    <a asp-action="Index">Back to List</a>
-</div>
+    <h4>Wyniki setów</h4>
+    <div>
+        @for (int i = 0; i < Model.Sets.Count; i++)
+        {
+            <div class="form-row mb-2">
+                <label>Set @(i + 1):</label>
+                <input asp-for="@Model.Sets[i].Score1" class="form-control d-inline-block w-auto mx-2" placeholder="Zawodnik 1" />
+                <span>:</span>
+                <input asp-for="@Model.Sets[i].Score2" class="form-control d-inline-block w-auto mx-2" placeholder="Zawodnik 2" />
+            </div>
+        }
+    </div>
+    <button type="submit" class="btn btn-primary mt-3">Dodaj mecz</button>
+</form>
+@Html.ValidationSummary(false, "", new { @class = "text-danger" })
 
-@section Scripts {
-    @{await Html.RenderPartialAsync("_ValidationScriptsPartial");}
-}
+
+<a asp-action="Index" class="btn btn-link">Powrót do listy</a>

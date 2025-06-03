@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.EntityFrameworkCore;
 using TableTenisWebApp.Data;
 using TableTenisWebApp.Models;
+using TableTenisWebApp.Models.ViewModels;
 
 namespace TableTenisWebApp.Controllers
 {
@@ -29,16 +30,50 @@ namespace TableTenisWebApp.Controllers
         public async Task<IActionResult> Details(int? id)
         {
             if (id == null)
-            {
                 return NotFound();
-            }
 
             var player = await _context.Players
-                .FirstOrDefaultAsync(m => m.Id == id);
+                .FirstOrDefaultAsync(p => p.Id == id);
             if (player == null)
-            {
                 return NotFound();
+
+            // Pobierz mecze z udziałem zawodnika
+            var matches = await _context.Matches
+                .Include(m => m.Player1)
+                .Include(m => m.Player2)
+                .Where(m => m.Player1Id == id || m.Player2Id == id)
+                .OrderByDescending(m => m.DatePlayed)
+                .ToListAsync();
+
+            // Oblicz statystyki
+            int wins = matches.Count(m =>
+                (m.Player1Id == id && m.Score1 > m.Score2) ||
+                (m.Player2Id == id && m.Score2 > m.Score1));
+
+            int loses = matches.Count(m =>
+                (m.Player1Id == id && m.Score1 < m.Score2) ||
+                (m.Player2Id == id && m.Score2 < m.Score1));
+
+            int setsWon = 0, setsLost = 0;
+            foreach (var m in matches)
+            {
+                if (m.Player1Id == id)
+                {
+                    setsWon += m.Score1;
+                    setsLost += m.Score2;
+                }
+                else
+                {
+                    setsWon += m.Score2;
+                    setsLost += m.Score1;
+                }
             }
+
+            ViewBag.Wins = wins;
+            ViewBag.Loses = loses;
+            ViewBag.SetsWon = setsWon;
+            ViewBag.SetsLost = setsLost;
+            ViewBag.Matches = matches;
 
             return View(player);
         }
@@ -156,23 +191,55 @@ namespace TableTenisWebApp.Controllers
         public async Task<IActionResult> Ranking()
         {
             var players = await _context.Players.ToListAsync();
+
+            // Pobierz mecze
             var matches = await _context.Matches.ToListAsync();
 
-            var ranking = players
-                .Select(p => new
+            // Przygotuj ranking
+            var ranking = players.Select(p =>
+            {
+                var asPlayer1 = matches.Where(m => m.Player1Id == p.Id);
+                var asPlayer2 = matches.Where(m => m.Player2Id == p.Id);
+
+                int played = asPlayer1.Count() + asPlayer2.Count();
+
+                int wins =
+                    asPlayer1.Count(m => m.Score1 > m.Score2) +
+                    asPlayer2.Count(m => m.Score2 > m.Score1);
+
+                int loses =
+                    asPlayer1.Count(m => m.Score1 < m.Score2) +
+                    asPlayer2.Count(m => m.Score2 < m.Score1);
+
+                int setsWon =
+                    asPlayer1.Sum(m => m.Score1) +
+                    asPlayer2.Sum(m => m.Score2);
+
+                int setsLost =
+                    asPlayer1.Sum(m => m.Score2) +
+                    asPlayer2.Sum(m => m.Score1);
+
+                return new PlayerRankingViewModel
                 {
                     Player = p,
-                    Wins = matches.Count(m =>
-                        (m.Player1Id == p.Id && m.Score1 > m.Score2) ||
-                        (m.Player2Id == p.Id && m.Score2 > m.Score1)),
-                    Matches = matches.Count(m => m.Player1Id == p.Id || m.Player2Id == p.Id)
-                })
-                .OrderByDescending(x => x.Wins)
-                .ThenBy(x => x.Player.Name)
-                .ToList();
+                    Played = played,
+                    Wins = wins,
+                    Loses = loses,
+                    SetsWon = setsWon,
+                    SetsLost = setsLost
+                };
+            })
+            .OrderByDescending(r => r.Wins)
+            .ThenByDescending(r => r.SetsWon)
+            .ThenBy(r => r.Loses)
+            .ToList();
 
             return View(ranking);
         }
+
+
+
+
 
     }
 }

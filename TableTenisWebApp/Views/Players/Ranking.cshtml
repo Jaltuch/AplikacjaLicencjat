@@ -1,29 +1,39 @@
-﻿@model IEnumerable<dynamic>
+﻿@model List<TableTenisWebApp.Models.ViewModels.PlayerRankingViewModel>
+
+@{
+    ViewData["Title"] = "Ranking zawodników";
+    int place = 1;
+}
 
 <h1>Ranking zawodników</h1>
-<table class="table">
+
+<table class="table table-striped">
     <thead>
         <tr>
             <th>Miejsce</th>
             <th>Zawodnik</th>
-            <th>Zwycięstwa</th>
-            <th>Rozegrane mecze</th>
+            <th>Rozegrane</th>
+            <th>Wygrane</th>
+            <th>Przegrane</th>
+            <th>Bilans setów</th>
         </tr>
     </thead>
     <tbody>
-        @{
-            var miejsce = 1;
-            foreach (var x in Model)
-            {
-                <tr>
-                    <td>@miejsce</td>
-                    <td>@x.Player.Name</td>
-                    <td>@x.Wins</td>
-                    <td>@x.Matches</td>
-                </tr>
-                miejsce++;
-            }
+        @foreach (var item in Model)
+        {
+            <tr>
+                <td>@place</td>
+                <td>
+                    <a asp-action="Details" asp-route-id="@item.Player.Id">@item.Player.Name</a>
+                </td>
+                <td>@item.Played</td>
+                <td class="fw-bold text-success">@item.Wins</td>
+                <td class="fw-bold text-danger">@item.Loses</td>
+                <td>@item.SetsWon : @item.SetsLost</td>
+            </tr>
+            place++;
         }
     </tbody>
 </table>
-<a asp-controller="Players" asp-action="Index" class="btn btn-secondary">Powrót do listy zawodników</a>
+
+<a asp-action="Index" class="btn btn-outline-secondary">Powrót do zawodników</a>

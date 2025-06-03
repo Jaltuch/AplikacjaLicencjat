@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.EntityFrameworkCore;
 using TableTenisWebApp.Data;
 using TableTenisWebApp.Models;
+using TableTenisWebApp.Models.ViewModels;
 
 namespace TableTenisWebApp.Controllers
 {
@@ -66,40 +67,79 @@ namespace TableTenisWebApp.Controllers
         }
 
         // GET: Matches/Create
-        public IActionResult Create()
+        public IActionResult Create(int numberOfSets = 5)
         {
-            
+            var vm = new MatchViewModel
+            {
+                NumberOfSets = numberOfSets,
+                Sets = Enumerable.Range(0, numberOfSets).Select(_ => new SetInput()).ToList(),
+                DatePlayed = DateTime.Now
+            };
             ViewBag.Players = new SelectList(_context.Players, "Id", "Name");
-            return View();
+            return View(vm);
         }
 
         // POST: Matches/Create
-        // To protect from overposting attacks, enable the specific properties you want to bind to.
-        // For more details, see http://go.microsoft.com/fwlink/?LinkId=317598.
+        
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> Create([Bind("Id,Player1Id,Player2Id,SetScores,DatePlayed")] Match match)
+        public async Task<IActionResult> Create(MatchViewModel vm)
         {
-            if (!string.IsNullOrEmpty(match.SetScores))
+            if (vm.Player1Id == vm.Player2Id)
             {
-                var (w1, w2) = CalculateSetWins(match.SetScores);
-                match.Score1 = w1;
-                match.Score2 = w2;
+                ModelState.AddModelError("", "Zawodnik nie może grać meczu przeciwko samemu sobie.");
+            }
+            // Sprawdź, czy wpisano jakiekolwiek sety
+            if (vm.Sets == null || !vm.Sets.Any(s => s.Score1.HasValue && s.Score2.HasValue))
+            {
+                ModelState.AddModelError("", "Musisz wpisać wyniki przynajmniej jednego seta.");
+            }
+            // Policz liczbę wygranych setów dla obu zawodników
+            var player1Wins = vm.Sets.Count(s => s.Score1 > s.Score2);
+            var player2Wins = vm.Sets.Count(s => s.Score2 > s.Score1);
+            var setsToWin = (vm.NumberOfSets / 2) + 1;
+
+            //   Sprawdź, czy ktoś wygrał prawidłową liczbę setów
+            if (player1Wins < setsToWin && player2Wins < setsToWin)
+            {
+                ModelState.AddModelError("", $"Mecz musi się zakończyć zwycięstwem jednego zawodnika ({setsToWin} wygranych setów).");
+            }
+            if (player1Wins >= setsToWin && player2Wins >= setsToWin)
+            {
+                ModelState.AddModelError("", "Obaj zawodnicy nie mogą mieć po tyle samo wygranych setów.");
             }
 
+            //  Poprawność wyników liczbowo
+            foreach (var set in vm.Sets)
+            {
+                if (!set.Score1.HasValue || !set.Score2.HasValue)
+                    continue;
+                if (set.Score1 < 0 || set.Score2 < 0)
+                    ModelState.AddModelError("", "Wynik seta nie może być ujemny.");
+            }
 
 
             if (ModelState.IsValid)
             {
+                // Zbuduj string z wynikami setów
+                var setScores = string.Join(";", vm.Sets.Select(s => $"{s.Score1}:{s.Score2}"));
+
+                var (w1, w2) = CalculateSetWins(setScores);
+                var match = new Match
+                {
+                    Player1Id = vm.Player1Id,
+                    Player2Id = vm.Player2Id,
+                    DatePlayed = vm.DatePlayed,
+                    SetScores = setScores,
+                    Score1 = w1,
+                    Score2 = w2
+                };
                 _context.Add(match);
                 await _context.SaveChangesAsync();
                 return RedirectToAction(nameof(Index));
             }
-            
-
-
             ViewBag.Players = new SelectList(_context.Players, "Id", "Name");
-            return View(match);
+            return View(vm);
         }
 
         // GET: Matches/Edit/5
