@@ -13,6 +13,12 @@ namespace TableTenisWebApp.Data
 
         public DbSet<Player> Players => Set<Player>();
         public DbSet<Match> Matches => Set<Match>();
+        protected override void OnModelCreating(ModelBuilder mb)
+        {
+            base.OnModelCreating(mb);
+
+           
+        }
 
 
 

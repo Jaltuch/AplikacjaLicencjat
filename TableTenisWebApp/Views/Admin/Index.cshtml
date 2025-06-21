@@ -1,0 +1,46 @@
+﻿@using Microsoft.AspNetCore.Identity
+@model IEnumerable<TableTenisWebApp.Models.ApplicationUser>
+@inject UserManager<TableTenisWebApp.Models.ApplicationUser> UM
+
+@{
+    ViewData["Title"] = "Użytkownicy";
+}
+
+<h1>Użytkownicy</h1>
+
+<table class="table table-striped">
+    <thead>
+        <tr>
+            <th>Email</th>
+            <th>Role</th>
+            <th>Akcje</th>
+        </tr>
+    </thead>
+    <tbody>
+        @foreach (var u in Model)
+        {
+            var roles = await UM.GetRolesAsync(u);
+            bool isOrg = roles.Contains("Organizer");
+            <tr>
+                <td>@u.Email</td>
+                <td>@string.Join(", ", roles)</td>
+                <td>
+                    @if (isOrg)
+                    {
+                        <form asp-action="RevokeOrganizer" asp-route-id="@u.Id" method="post" class="d-inline">
+                            <button class="btn btn-sm btn-warning">Usuń Organizer</button>
+                        </form>
+                    }
+                    else
+                    {
+                        <form asp-action="GrantOrganizer" asp-route-id="@u.Id" method="post" class="d-inline">
+                            <button class="btn btn-sm btn-success">Nadaj Organizer</button>
+                        </form>
+                    }
+                </td>
+            </tr>
+        }
+    </tbody>
+</table>
+
+<a asp-area="" asp-controller="Home" asp-action="Index" class="btn btn-secondary">Strona główna</a>

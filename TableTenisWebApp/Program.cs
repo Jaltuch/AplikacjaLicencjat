@@ -1,11 +1,13 @@
+using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using TableTenisWebApp.Data;
+using TableTenisWebApp.Models;
 
 namespace TableTenisWebApp
 {
     public class Program
     {
-        public static void Main(string[] args)
+        public static async Task Main(string[] args)
         {
             
             var builder = WebApplication.CreateBuilder(args);
@@ -13,8 +15,18 @@ namespace TableTenisWebApp
             // Rejestracja bazy danych
             builder.Services.AddDbContext<AppDbContext>(options =>
                 options.UseSqlite(builder.Configuration.GetConnectionString("DefaultConnection")));
+            builder.Services.AddDbContext<AppIdentityDbContext>(opt =>
+                opt.UseSqlite
+                (builder.Configuration.GetConnectionString("DefaultConnection")));
+            // ── Identity + Role
+            builder.Services
+                .AddDefaultIdentity<ApplicationUser>(opt => opt.SignIn.RequireConfirmedAccount = false)
+                .AddRoles<IdentityRole>()
+                .AddEntityFrameworkStores<AppIdentityDbContext>();
 
+           
             builder.Services.AddControllersWithViews();
+            builder.Services.AddRazorPages();
 
             var app = builder.Build();
 
@@ -25,7 +37,7 @@ namespace TableTenisWebApp
                 
                 app.UseHsts();
             }
-            app.UseHsts(); // Produkcyjne � wymusza HTTPS w przegl�darce
+            app.UseHsts(); // Produkcyjne – wymusza HTTPS w przeglądarce
 
             app.UseHttpsRedirection();
             app.UseStaticFiles();
@@ -37,13 +49,16 @@ namespace TableTenisWebApp
 
 
             app.UseRouting();
-
+            app.UseAuthentication();
             app.UseAuthorization();
+            await IdentitySeeder.SeedAsync(app.Services);
 
             app.MapControllerRoute(
                 name: "default",
                 pattern: "{controller=Home}/{action=Index}/{id?}");
 
+            
+            app.MapRazorPages();
             app.Run();
         }
     }
