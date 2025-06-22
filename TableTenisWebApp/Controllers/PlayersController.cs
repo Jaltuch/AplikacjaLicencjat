@@ -2,6 +2,8 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.EntityFrameworkCore;
@@ -11,13 +13,16 @@ using TableTenisWebApp.Models.ViewModels;
 
 namespace TableTenisWebApp.Controllers
 {
+    [Authorize]
     public class PlayersController : Controller
     {
         private readonly AppDbContext _context;
+        private readonly UserManager<ApplicationUser> _um;
 
-        public PlayersController(AppDbContext context)
+        public PlayersController(AppDbContext context, UserManager<ApplicationUser> um)
         {
             _context = context;
+            _um = um;
         }
 
         // GET: Players
@@ -113,6 +118,11 @@ namespace TableTenisWebApp.Controllers
             {
                 return NotFound();
             }
+            // --- uprawnienie ---
+            if (!User.IsInRole("Admin") &&
+                player.ApplicationUserId != _um.GetUserId(User))
+                return Forbid();   // HTTP 403
+
             return View(player);
         }
 
@@ -121,12 +131,16 @@ namespace TableTenisWebApp.Controllers
         // For more details, see http://go.microsoft.com/fwlink/?LinkId=317598.
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> Edit(int id, [Bind("Id,Name")] Player player)
+        public async Task<IActionResult> Edit(int id, [Bind("Id,Name,,ApplicationUserId")] Player player)
         {
             if (id != player.Id)
             {
                 return NotFound();
             }
+            // --- uprawnienie ---
+            if (!User.IsInRole("Admin") &&
+                player.ApplicationUserId != _um.GetUserId(User))
+                return Forbid();
 
             if (ModelState.IsValid)
             {
@@ -165,6 +179,10 @@ namespace TableTenisWebApp.Controllers
             {
                 return NotFound();
             }
+            // --- uprawnienie ---
+            if (!User.IsInRole("Admin") &&
+                player.ApplicationUserId != _um.GetUserId(User))
+                return Forbid();
 
             return View(player);
         }
@@ -174,7 +192,13 @@ namespace TableTenisWebApp.Controllers
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> DeleteConfirmed(int id)
         {
+            
             var player = await _context.Players.FindAsync(id);
+            // --- uprawnienie ---
+            if (!User.IsInRole("Admin") &&
+                player.ApplicationUserId != _um.GetUserId(User))
+                return Forbid();
+
             if (player != null)
             {
                 _context.Players.Remove(player);

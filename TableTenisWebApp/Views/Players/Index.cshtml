@@ -1,4 +1,7 @@
-﻿@model IEnumerable<TableTenisWebApp.Models.Player>
+﻿@using Microsoft.AspNetCore.Identity
+@model IEnumerable<TableTenisWebApp.Models.Player>
+@inject UserManager<TableTenisWebApp.Models.ApplicationUser> UM
+
 
 @{
     ViewData["Title"] = "Zawodnicy";
@@ -24,11 +27,21 @@
             <td>
                 @Html.DisplayFor(modelItem => item.Name)
             </td>
-            <td>
-                <a asp-action="Edit" asp-route-id="@item.Id">Edytuj</a> |
-                <a asp-action="Details" asp-route-id="@item.Id">Szczegóły</a> |
-                <a asp-action="Delete" asp-route-id="@item.Id">Usuń</a>
-            </td>
+                <td>
+                    @{
+                        bool isOwner = item.ApplicationUserId == UM.GetUserId(User);
+                        bool isAdmin = User.IsInRole("Admin");
+                        bool canEdit = isAdmin || isOwner;
+                    }
+                    @if (canEdit)
+                    {
+                        <a asp-action="Edit" asp-route-id="@item.Id">Edytuj</a>
+ 
+                        <a asp-action = "Delete"  asp-route-id = "@item.Id" > Usuń </a> 
+                    }
+                    <a asp-action="Details" asp-route-id="@item.Id">Szczegóły</a>
+                </td>
+
         </tr>
 }
     </tbody>
