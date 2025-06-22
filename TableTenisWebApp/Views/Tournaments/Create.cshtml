@@ -1,0 +1,52 @@
+﻿@model TableTenisWebApp.Models.Tournament
+@{
+    ViewData["Title"] = "Nowy turniej";
+    var all      = (List<TableTenisWebApp.Models.Player>)ViewBag.AllPlayers;
+    int[] chosen = ViewBag.SelectedIds ?? Array.Empty<int>();
+}
+
+<h2>Nowy turniej</h2>
+
+<form asp-action="Create">
+    <div asp-validation-summary="All" class="text-danger"></div>
+
+    <div class="mb-3">
+        <label asp-for="Name" class="form-label"></label>
+        <input asp-for="Name" class="form-control" />
+        <span asp-validation-for="Name" class="text-danger"></span>
+    </div>
+
+    <div class="mb-3">
+        <label asp-for="Start" class="form-label"></label>
+        <input asp-for="Start" type="date" class="form-control" />
+    </div>
+
+    <div class="mb-3">
+        <label asp-for="End" class="form-label"></label>
+        <input asp-for="End" type="date" class="form-control" />
+    </div>
+
+    <div class="mb-3">
+        <label class="form-label">Zawodnicy</label>
+        <select name="selectedPlayers" multiple size="10" class="form-select">
+            @foreach (var p in all)
+            {
+                if (chosen.Contains(p.Id))
+                {
+                    <option value="@p.Id" selected>@p.Name</option>
+                }
+                else
+                {
+                    <option value="@p.Id">@p.Name</option>
+                }
+            }
+        </select>
+    </div>
+
+    <button type="submit" class="btn btn-primary">Zapisz</button>
+    <a asp-action="Index" class="btn btn-secondary">Anuluj</a>
+</form>
+
+@section Scripts {
+    @{await Html.RenderPartialAsync("_ValidationScriptsPartial");}
+}

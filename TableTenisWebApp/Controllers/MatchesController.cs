@@ -34,9 +34,9 @@ namespace TableTenisWebApp.Controllers
             return (player1Wins, player2Wins);
         }
 
-        private readonly AppDbContext _context;
+        private readonly AppIdentityDbContext _context;
 
-        public MatchesController(AppDbContext context)
+        public MatchesController(AppIdentityDbContext context)
         {
             _context = context;
         }

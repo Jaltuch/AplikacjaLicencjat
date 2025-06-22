@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using TableTenisWebApp.Data;
 
@@ -10,9 +11,11 @@ using TableTenisWebApp.Data;
 namespace TableTenisWebApp.MigrationsIdentity
 {
     [DbContext(typeof(AppIdentityDbContext))]
-    partial class AppIdentityDbContextModelSnapshot : ModelSnapshot
+    [Migration("20250622115937_TournamentInit")]
+    partial class TournamentInit
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder.HasAnnotation("ProductVersion", "8.0.4");
@@ -248,7 +251,7 @@ namespace TableTenisWebApp.MigrationsIdentity
 
                     b.HasIndex("TournamentId");
 
-                    b.ToTable("Match", (string)null);
+                    b.ToTable("Match");
                 });
 
             modelBuilder.Entity("TableTenisWebApp.Models.Player", b =>

@@ -1,0 +1,41 @@
+﻿@model TableTenisWebApp.Models.Tournament
+@{
+    ViewData["Title"] = "Szczegóły";
+}
+
+<h2>@Model.Name</h2>
+<p>Od @Model.Start:d @(Model.End is not null ? $"do {Model.End:d}" : "")</p>
+
+<h4>Uczestnicy (@Model.Players.Count)</h4>
+<ul>
+    @foreach (var tp in Model.Players)
+    {
+        <li>@tp.Player.Name</li>
+    }
+</ul>
+
+<h4>Mecze (@Model.Matches.Count)</h4>
+<table class="table">
+    <thead>
+        <tr><th>Mecz</th><th>Wynik</th><th>Data</th></tr>
+    </thead>
+    <tbody>
+        @foreach (var m in Model.Matches)
+        {
+            <tr>
+                <td>@m.Player1.Name – @m.Player2.Name</td>
+                <td>@m.Score1 : @m.Score2</td>
+                <td>@m.DatePlayed:d</td>
+            </tr>
+        }
+    </tbody>
+</table>
+
+@if (User.IsInRole("Organizer") || User.IsInRole("Admin"))
+{
+    <p>
+        <a asp-action="Edit" asp-route-id="@Model.Id" class="btn btn-warning">Edytuj</a>
+        <a asp-action="Delete" asp-route-id="@Model.Id" class="btn btn-danger">Usuń</a>
+    </p>
+}
+<a asp-action="Index">↩︎ Lista turniejów</a>

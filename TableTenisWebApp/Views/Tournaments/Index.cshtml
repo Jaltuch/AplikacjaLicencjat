@@ -1,0 +1,43 @@
+﻿@model IEnumerable<TableTenisWebApp.Models.Tournament>
+@{
+    ViewData["Title"] = "Turnieje";
+}
+
+<h1 class="mb-3">Turnieje</h1>
+
+@if (User.IsInRole("Organizer") || User.IsInRole("Admin"))
+{
+    <p>
+        <a asp-action="Create" class="btn btn-primary">Dodaj turniej</a>
+    </p>
+}
+
+<table class="table table-striped">
+    <thead>
+        <tr>
+            <th>Nazwa</th>
+            <th>Start</th>
+            <th>Koniec</th>
+            <th></th>
+        </tr>
+    </thead>
+    <tbody>
+        @foreach (var t in Model)
+        {
+            <tr>
+                <td>@t.Name</td>
+                <td>@t.Start:d</td>
+                <td>@t.End?.ToShortDateString()</td>
+                <td>
+                    <a asp-action="Details" asp-route-id="@t.Id">Szczegóły</a>
+
+                    @if (User.IsInRole("Organizer") || User.IsInRole("Admin"))
+                    {
+                     <a asp-action="Edit"   asp-route-id = "@t.Id" > Edytuj </a>
+                     <a asp-action = "Delete" asp-route-id = "@t.Id" > Usuń </a>
+                    }
+                </td>
+            </tr>
+        }
+    </tbody>
+</table>

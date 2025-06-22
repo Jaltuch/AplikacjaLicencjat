@@ -11,6 +11,9 @@ public class AppIdentityDbContext : IdentityDbContext<ApplicationUser>
 
 
     public DbSet<Player> Players => Set<Player>();
+    public DbSet<Match> Matches => Set<Match>();
+    public DbSet<Tournament> Tournaments => Set<Tournament>();
+    public DbSet<TournamentPlayer> TournamentPlayers => Set<TournamentPlayer>();
 
     protected override void OnModelCreating(ModelBuilder mb)
     {
@@ -23,5 +26,10 @@ public class AppIdentityDbContext : IdentityDbContext<ApplicationUser>
           .WithOne()
           .HasForeignKey<Player>(p => p.ApplicationUserId)
           .OnDelete(DeleteBehavior.SetNull);
+
+        mb.Entity<TournamentPlayer>()
+            .HasKey(tp => new { tp.TournamentId, tp.PlayerId });
+
+        mb.Entity<Match>().ToTable("Match");
     }
 }

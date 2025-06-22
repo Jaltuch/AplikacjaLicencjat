@@ -1,0 +1,12 @@
+﻿@model TableTenisWebApp.Models.Tournament
+@{
+    ViewData["Title"] = "Usuń turniej";
+}
+
+<h2>Czy na pewno usunąć „@Model.Name”?</h2>
+
+<form asp-action="Delete">
+    <input type="hidden" asp-for="Id" />
+    <button type="submit" class="btn btn-danger">Usuń</button>
+    <a asp-action="Index" class="btn btn-secondary">Anuluj</a>
+</form>

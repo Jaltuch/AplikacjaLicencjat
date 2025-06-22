@@ -8,9 +8,9 @@ namespace TableTenisWebApp.Controllers
 {
     public class HomeController : Controller
     {
-        private readonly AppDbContext _context;
+        private readonly AppIdentityDbContext _context;
 
-        public HomeController(AppDbContext context)
+        public HomeController(AppIdentityDbContext context)
         {
             _context = context;
         }

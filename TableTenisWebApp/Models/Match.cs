@@ -5,6 +5,9 @@ namespace TableTenisWebApp.Models
     public class Match
     {
         public int Id { get; set; }
+        public int? TournamentId { get; set; }
+        public Tournament? Tournament { get; set; }
+
 
         [Required]
         [Display(Name = "Zawodnik 1")]

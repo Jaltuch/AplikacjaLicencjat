@@ -16,10 +16,10 @@ namespace TableTenisWebApp.Controllers
     [Authorize]
     public class PlayersController : Controller
     {
-        private readonly AppDbContext _context;
+        private readonly AppIdentityDbContext _context;
         private readonly UserManager<ApplicationUser> _um;
 
-        public PlayersController(AppDbContext context, UserManager<ApplicationUser> um)
+        public PlayersController(AppIdentityDbContext context, UserManager<ApplicationUser> um)
         {
             _context = context;
             _um = um;
