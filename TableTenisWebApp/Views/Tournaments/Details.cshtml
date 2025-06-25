@@ -1,36 +1,132 @@
 ﻿@model TableTenisWebApp.Models.Tournament
+@using TableTenisWebApp.Models.ViewModels
+@using Microsoft.AspNetCore.Identity
+@using Microsoft.AspNetCore.Mvc.ViewFeatures
+@using Microsoft.AspNetCore.Mvc.Razor
+@inject UserManager<ApplicationUser> UserManager
+@inject SignInManager<ApplicationUser> SignInManager
+
+
+@if (TempData["Err"] is string err)
+{
+    <div class="alert alert-danger">@err</div>
+}
+@if (TempData["Msg"] is string msg)
+{
+    <div class="alert alert-success">@msg</div>
+}
+
 @{
-    ViewData["Title"] = "Szczegóły";
+    ViewData["Title"] = "Szczegóły turnieju";
+    var standings = ViewBag.Standings as IList<TournamentStandingRow> ?? new List<TournamentStandingRow>();
 }
 
 <h2>@Model.Name</h2>
 <p>Od @Model.Start:d @(Model.End is not null ? $"do {Model.End:d}" : "")</p>
 
+<!------------- UCZESTNICY ------------>
 <h4>Uczestnicy (@Model.Players.Count)</h4>
 <ul>
-    @foreach (var tp in Model.Players)
+    @foreach (var tp in Model.Players.OrderBy(p => p.Player.Name))
     {
         <li>@tp.Player.Name</li>
     }
 </ul>
+@if ((User.IsInRole("Organizer") || User.IsInRole("Admin")) && !Model.Matches.Any())
+{
+    <form asp-action="Generate" method="post" class="mb-3">
+        <input type="hidden" name="id" value="@Model.Id" />
+        <button type="submit" class="btn btn-success">
+            🔄 Generuj terminarz
+        </button>
+    </form>
+}
 
+
+<!------------- MECZE ------------>
 <h4>Mecze (@Model.Matches.Count)</h4>
-<table class="table">
+<table class="table table-sm table-striped">
     <thead>
-        <tr><th>Mecz</th><th>Wynik</th><th>Data</th></tr>
+        <tr>
+            <th>Mecz</th>
+            <th>Wynik</th>
+            <th>Data</th>
+        </tr>
     </thead>
     <tbody>
-        @foreach (var m in Model.Matches)
+        @foreach (var m in Model.Matches.OrderBy(m => m.DatePlayed))
         {
             <tr>
-                <td>@m.Player1.Name – @m.Player2.Name</td>
-                <td>@m.Score1 : @m.Score2</td>
+                <td>@m.Player1.Name &nbsp;–&nbsp; @m.Player2.Name</td>
+                <td>@m.Score1&nbsp;:&nbsp;@m.Score2</td>
                 <td>@m.DatePlayed:d</td>
+                <td>
+                    @if (m.Score1 + m.Score2 == 0 &&
+                   (
+                   User.IsInRole("Admin") ||
+                   User.IsInRole("Organizer") ||
+                   (Model.AllowPlayersEnterScores &&
+                   User.IsInRole("Player") &&
+                   (UserManager.GetUserId(User) == m.Player1.ApplicationUserId ||
+                   UserManager.GetUserId(User) == m.Player2.ApplicationUserId))
+                   ))
+                    {
+                        <a asp-controller="Matches" asp-action="EnterScore" asp-route-id="@m.Id"
+                           class="btn btn-sm btn-outline-success">Wpisz wynik</a>
+                    }
+                    else
+                    {
+                        @($"{m.Score1} : {m.Score2}")
+                        @if (!m.IsApproved)
+                        {
+                            <small class="text-warning">(niezatw.)</small>
+                        }
+                    }
+
+
+                    
+                </td>
+
             </tr>
         }
     </tbody>
 </table>
 
+<!------------- RANKING ------------>
+@if (standings.Any())
+{
+    <h4>Ranking</h4>
+    <table class="table table-sm table-bordered">
+        <thead>
+            <tr>
+                <th>#</th>
+                <th>Zawodnik</th>
+                <th>M</th>
+                <th>W</th>
+                <th>P</th>
+                <th>+ / – sety</th>
+                <th>Punkty</th>
+            </tr>
+        </thead>
+        <tbody>
+            @for (int i = 0; i < standings.Count; i++)
+            {
+                var r = standings[i];
+                <tr>
+                    <td>@(i + 1)</td>
+                    <td>@r.Name</td>
+                    <td>@r.Played</td>
+                    <td>@r.Won</td>
+                    <td>@r.Lost</td>
+                    <td>@(r.SetsPlus - r.SetsMinus)</td>
+                    <td>@r.Points</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+<!------------- AKCJE ADMINA/ORGANIZATORA ------------>
 @if (User.IsInRole("Organizer") || User.IsInRole("Admin"))
 {
     <p>
@@ -38,4 +134,5 @@
         <a asp-action="Delete" asp-route-id="@Model.Id" class="btn btn-danger">Usuń</a>
     </p>
 }
+
 <a asp-action="Index">↩︎ Lista turniejów</a>

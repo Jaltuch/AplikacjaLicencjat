@@ -11,9 +11,10 @@ namespace TableTenisWebApp
         {
             
             var builder = WebApplication.CreateBuilder(args);
+            
 
             // Rejestracja bazy danych
-         
+
             builder.Services.AddDbContext<AppIdentityDbContext>(opt =>
                 opt.UseSqlite
                 (builder.Configuration.GetConnectionString("DefaultConnection")));
@@ -28,6 +29,8 @@ namespace TableTenisWebApp
             builder.Services.AddRazorPages();
 
             var app = builder.Build();
+
+          
 
             // Configure the HTTP request pipeline.
             if (!app.Environment.IsDevelopment())

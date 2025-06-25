@@ -25,6 +25,25 @@
         <label asp-for="End" class="form-label"></label>
         <input asp-for="End" type="date" class="form-control" />
     </div>
+    <div class="form-group">
+        <label asp-for="Type" class="control-label"></label>
+        <select asp-for="Type" class="form-control" asp-items="ViewBag.Types"></select>
+    </div>
+
+    <div class="form-group">
+        <label asp-for="SetsToWin" class="control-label"></label>
+        <input asp-for="SetsToWin" class="form-control" min="1" max="7" />
+    </div>
+
+    <div class="form-group">
+        <label asp-for="PointsPerSet" class="control-label"></label>
+        <input asp-for="PointsPerSet" class="form-control" min="5" max="21" />
+    </div>
+
+    <div class="form-check mb-3">
+        <input asp-for="AllowPlayersEnterScores" class="form-check-input" />
+        <label asp-for="AllowPlayersEnterScores" class="form-check-label">Zawodnicy mogą wpisywać wyniki swoich meczów</label>
+    </div>
 
     <div class="mb-3">
         <label class="form-label">Zawodnicy</label>

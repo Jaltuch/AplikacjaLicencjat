@@ -8,6 +8,10 @@ namespace TableTenisWebApp.Models
         public int? TournamentId { get; set; }
         public Tournament? Tournament { get; set; }
 
+        public bool IsApproved { get; set; } = false;      // Organizer/Admin potwierdził
+        public string? EnteredByUserId { get; set; }          // kto wpisał
+
+
 
         [Required]
         [Display(Name = "Zawodnik 1")]

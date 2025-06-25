@@ -1,249 +1,326 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
-using Microsoft.AspNetCore.Authorization;
+﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.EntityFrameworkCore;
+using System;
 using TableTenisWebApp.Data;
 using TableTenisWebApp.Models;
 using TableTenisWebApp.Models.ViewModels;
 
 namespace TableTenisWebApp.Controllers
 {
-    [Authorize(Roles = "Organizer,Admin")]
+    [Authorize]
     public class MatchesController : Controller
     {
-        private (int, int) CalculateSetWins(string setScores)
+        /* ---------- POMOCNICZE ---------- */
+        private static (int p1, int p2) SetWins(string setScores)
         {
-            int player1Wins = 0;
-            int player2Wins = 0;
-            if (string.IsNullOrEmpty(setScores)) return (0, 0);
+            if (string.IsNullOrWhiteSpace(setScores)) return (0, 0);
 
-            var sets = setScores.Split(';', StringSplitOptions.RemoveEmptyEntries);
-            foreach (var set in sets)
+            int w1 = 0, w2 = 0;
+            foreach (var s in setScores.Split(';', StringSplitOptions.RemoveEmptyEntries))
             {
-                var scores = set.Split(':');
-                if (scores.Length == 2 && int.TryParse(scores[0], out int s1) && int.TryParse(scores[1], out int s2))
+                var parts = s.Split(':');
+                if (parts.Length == 2 &&
+                    int.TryParse(parts[0], out int a) &&
+                    int.TryParse(parts[1], out int b))
                 {
-                    if (s1 > s2) player1Wins++;
-                    else if (s2 > s1) player2Wins++;
+                    if (a > b) w1++; else if (b > a) w2++;
                 }
             }
-            return (player1Wins, player2Wins);
+            return (w1, w2);
         }
 
-        private readonly AppIdentityDbContext _context;
-
-        public MatchesController(AppIdentityDbContext context)
+        /* ---------- KONSTRUKTOR ---------- */
+        private readonly AppIdentityDbContext _ctx;
+        private readonly UserManager<ApplicationUser> _userManager;
+        public MatchesController(AppIdentityDbContext ctx, UserManager<ApplicationUser> userManager)
         {
-            _context = context;
+            _ctx = ctx;
+            _userManager = userManager;
         }
-
-        // GET: Matches
+        /* ---------- LISTA ---------- */
         public async Task<IActionResult> Index()
-        {
-            var appDbContext = _context.Matches.Include(m => m.Player1).Include(m => m.Player2);
-            return View(await appDbContext.ToListAsync());
-        }
+            => View(await _ctx.Matches
+                               .Include(m => m.Player1)
+                               .Include(m => m.Player2)
+                               .Include(m => m.Tournament)
+                               .AsNoTracking()
+                               .ToListAsync());
 
-        // GET: Matches/Details/5
+        /* ---------- SZCZEGÓŁY ---------- */
         public async Task<IActionResult> Details(int? id)
         {
-            if (id == null)
-            {
-                return NotFound();
-            }
+            if (id is null) return NotFound();
 
-            var match = await _context.Matches
-                .Include(m => m.Player1)
-                .Include(m => m.Player2)
-                .FirstOrDefaultAsync(m => m.Id == id);
-            if (match == null)
-            {
-                return NotFound();
-            }
+            var m = await _ctx.Matches
+                              .Include(x => x.Player1)
+                              .Include(x => x.Player2)
+                              .Include(x => x.Tournament)
+                              .FirstOrDefaultAsync(x => x.Id == id);
 
-            return View(match);
+            return m is null ? NotFound() : View(m);
         }
 
-        // GET: Matches/Create
+        /* ==============================================================
+           CREATE
+        =================================================================*/
+
+        // GET
         public IActionResult Create(int numberOfSets = 5)
         {
             var vm = new MatchViewModel
             {
                 NumberOfSets = numberOfSets,
-                Sets = Enumerable.Range(0, numberOfSets).Select(_ => new SetInput()).ToList(),
+                Sets = Enumerable.Range(0, numberOfSets)
+                                         .Select(_ => new SetInput())
+                                         .ToList(),
                 DatePlayed = DateTime.Now
             };
-            ViewBag.Players = new SelectList(_context.Players, "Id", "Name");
+
+            ViewBag.Players = new SelectList(_ctx.Players, "Id", "Name");
+            ViewBag.Tournaments = new SelectList(_ctx.Tournaments, "Id", "Name");
             return View(vm);
         }
 
-        // POST: Matches/Create
-        
-        [HttpPost]
-        [ValidateAntiForgeryToken]
+        // POST
+        [HttpPost, ValidateAntiForgeryToken]
         public async Task<IActionResult> Create(MatchViewModel vm)
         {
+            /* ---- WALIDACJA PODSTAWOWA ---- */
             if (vm.Player1Id == vm.Player2Id)
-            {
-                ModelState.AddModelError("", "Zawodnik nie może grać meczu przeciwko samemu sobie.");
-            }
-            // Sprawdź, czy wpisano jakiekolwiek sety
+                ModelState.AddModelError("", "Zawodnik nie może grać przeciwko samemu sobie.");
+
             if (vm.Sets == null || !vm.Sets.Any(s => s.Score1.HasValue && s.Score2.HasValue))
-            {
-                ModelState.AddModelError("", "Musisz wpisać wyniki przynajmniej jednego seta.");
-            }
-            // Policz liczbę wygranych setów dla obu zawodników
-            var player1Wins = vm.Sets.Count(s => s.Score1 > s.Score2);
-            var player2Wins = vm.Sets.Count(s => s.Score2 > s.Score1);
-            var setsToWin = (vm.NumberOfSets / 2) + 1;
+                ModelState.AddModelError("", "Wpisz wynik przynajmniej jednego seta.");
 
-            //   Sprawdź, czy ktoś wygrał prawidłową liczbę setów
-            if (player1Wins < setsToWin && player2Wins < setsToWin)
+            var wins1 = vm.Sets.Count(s => s.Score1 > s.Score2);
+            var wins2 = vm.Sets.Count(s => s.Score2 > s.Score1);
+            var setsToWin = vm.NumberOfSets / 2 + 1;
+
+            if ((wins1 == setsToWin && wins2 > 0) || (wins2 == setsToWin && wins1 > 0))
             {
-                ModelState.AddModelError("", $"Mecz musi się zakończyć zwycięstwem jednego zawodnika ({setsToWin} wygranych setów).");
+                // OK – jeden gracz wygrał dokładnie tyle setów, ile trzeba
             }
-            if (player1Wins >= setsToWin && player2Wins >= setsToWin)
+            else
             {
-                ModelState.AddModelError("", "Obaj zawodnicy nie mogą mieć po tyle samo wygranych setów.");
+                ModelState.AddModelError("", $"Zwycięzca musi wygrać dokładnie {setsToWin} sety, przeciwnik nie może mieć tylu samo lub więcej.");
             }
 
-            //  Poprawność wyników liczbowo
-            foreach (var set in vm.Sets)
-            {
-                if (!set.Score1.HasValue || !set.Score2.HasValue)
-                    continue;
-                if (set.Score1 < 0 || set.Score2 < 0)
-                    ModelState.AddModelError("", "Wynik seta nie może być ujemny.");
-            }
-
-
+            /* ---- ZAPIS ---- */
             if (ModelState.IsValid)
             {
-                // Zbuduj string z wynikami setów
-                var setScores = string.Join(";", vm.Sets.Select(s => $"{s.Score1}:{s.Score2}"));
+                var setString = string.Join(";", vm.Sets.Select(s => $"{s.Score1}:{s.Score2}"));
+                var (s1, s2) = SetWins(setString);
 
-                var (w1, w2) = CalculateSetWins(setScores);
                 var match = new Match
                 {
+                    TournamentId = vm.TournamentId,   // ⬅️
                     Player1Id = vm.Player1Id,
                     Player2Id = vm.Player2Id,
                     DatePlayed = vm.DatePlayed,
-                    SetScores = setScores,
-                    Score1 = w1,
-                    Score2 = w2
+                    SetScores = setString,
+                    Score1 = s1,
+                    Score2 = s2
                 };
-                _context.Add(match);
-                await _context.SaveChangesAsync();
+
+                _ctx.Matches.Add(match);
+                await _ctx.SaveChangesAsync();
                 return RedirectToAction(nameof(Index));
             }
-            ViewBag.Players = new SelectList(_context.Players, "Id", "Name");
+
+            /* ponowny return z dropdownami */
+            ViewBag.Players = new SelectList(_ctx.Players, "Id", "Name");
+            ViewBag.Tournaments = new SelectList(_ctx.Tournaments, "Id", "Name");
             return View(vm);
         }
 
-        // GET: Matches/Edit/5
+        /* ==============================================================
+           EDIT
+        =================================================================*/
+
+        // GET
         public async Task<IActionResult> Edit(int? id)
         {
-            if (id == null)
-            {
-                return NotFound();
-            }
+            if (id is null) return NotFound();
 
-            var match = await _context.Matches.FindAsync(id);
-            if (match == null)
-            {
-                return NotFound();
-            }
-            
-            
-            ViewBag.Players = new SelectList(_context.Players, "Id", "Name", match.Player1Id);
-            return View(match);
+            var m = await _ctx.Matches.FindAsync(id);
+            if (m is null) return NotFound();
+
+            var vm = new MatchViewModel(m);           // pomocniczy ctor => wypełnia pola
+            ViewBag.Players = new SelectList(_ctx.Players, "Id", "Name");
+            ViewBag.Tournaments = new SelectList(_ctx.Tournaments, "Id", "Name", m.TournamentId);
+            return View(vm);
         }
 
-        // POST: Matches/Edit/5
-        // To protect from overposting attacks, enable the specific properties you want to bind to.
-        // For more details, see http://go.microsoft.com/fwlink/?LinkId=317598.
-        [HttpPost]
-        [ValidateAntiForgeryToken]
-        public async Task<IActionResult> Edit(int id, [Bind("Id,Player1Id,Player2Id,SetScores,DatePlayed")] Match match)
+        // POST
+        [HttpPost, ValidateAntiForgeryToken]
+        public async Task<IActionResult> Edit(int id, MatchViewModel vm)
         {
-            if (!string.IsNullOrEmpty(match.SetScores))
+            if (id != vm.Id) return NotFound();
+
+            if (!ModelState.IsValid)                   // uproszczona walidacja
             {
-                var (w1, w2) = CalculateSetWins(match.SetScores);
-                match.Score1 = w1;
-                match.Score2 = w2;
+                ViewBag.Players = new SelectList(_ctx.Players, "Id", "Name");
+                ViewBag.Tournaments = new SelectList(_ctx.Tournaments, "Id", "Name", vm.TournamentId);
+                return View(vm);
             }
 
-            if (id != match.Id)
-            {
-                return NotFound();
-            }
+            var m = await _ctx.Matches.FindAsync(id);
+            if (m is null) return NotFound();
 
-            if (ModelState.IsValid)
-            {
-                try
-                {
-                    _context.Update(match);
-                    await _context.SaveChangesAsync();
-                }
-                catch (DbUpdateConcurrencyException)
-                {
-                    if (!MatchExists(match.Id))
-                    {
-                        return NotFound();
-                    }
-                    else
-                    {
-                        throw;
-                    }
-                }
-                return RedirectToAction(nameof(Index));
-            }
-            ViewBag.Players = new SelectList(_context.Players, "Id", "Name", match.Player1Id);
-            return View(match);
-        }
+            m.TournamentId = vm.TournamentId;
+            m.Player1Id = vm.Player1Id;
+            m.Player2Id = vm.Player2Id;
+            m.DatePlayed = vm.DatePlayed;
+            m.SetScores = string.Join(";", vm.Sets.Select(s => $"{s.Score1}:{s.Score2}"));
+            (m.Score1, m.Score2) = SetWins(m.SetScores);
 
-        // GET: Matches/Delete/5
-        public async Task<IActionResult> Delete(int? id)
-        {
-            if (id == null)
-            {
-                return NotFound();
-            }
-
-            var match = await _context.Matches
-                .Include(m => m.Player1)
-                .Include(m => m.Player2)
-                .FirstOrDefaultAsync(m => m.Id == id);
-            if (match == null)
-            {
-                return NotFound();
-            }
-
-            return View(match);
-        }
-
-        // POST: Matches/Delete/5
-        [HttpPost, ActionName("Delete")]
-        [ValidateAntiForgeryToken]
-        public async Task<IActionResult> DeleteConfirmed(int id)
-        {
-            var match = await _context.Matches.FindAsync(id);
-            if (match != null)
-            {
-                _context.Matches.Remove(match);
-            }
-
-            await _context.SaveChangesAsync();
+            _ctx.Update(m);
+            await _ctx.SaveChangesAsync();
             return RedirectToAction(nameof(Index));
         }
 
-        private bool MatchExists(int id)
+        /* ---------- DELETE (bez zmian) ---------- */
+        public async Task<IActionResult> Delete(int? id)
         {
-            return _context.Matches.Any(e => e.Id == id);
+            if (id is null) return NotFound();
+            var m = await _ctx.Matches
+                              .Include(x => x.Player1)
+                              .Include(x => x.Player2)
+                              .Include(x => x.Tournament)
+                              .FirstOrDefaultAsync(x => x.Id == id);
+            return m is null ? NotFound() : View(m);
+        }
+
+        [HttpPost, ActionName("Delete"), ValidateAntiForgeryToken]
+        public async Task<IActionResult> DeleteConfirmed(int id)
+        {
+            var m = await _ctx.Matches.FindAsync(id);
+            if (m is not null) _ctx.Matches.Remove(m);
+            await _ctx.SaveChangesAsync();
+            return RedirectToAction(nameof(Index));
+        }
+
+        
+        // ---------- PLAYERS ENTER SCORE ----------
+        [Authorize(Roles = "Player,Organizer,Admin")]
+        public async Task<IActionResult> EnterScore(int id)
+        {
+            var match = await _ctx.Matches
+                .Include(m => m.Tournament)           // potrzebne do flagi
+                .Include(m => m.Player1)
+                .Include(m => m.Player2)
+                .FirstOrDefaultAsync(m => m.Id == id);
+
+            if (match is null) return NotFound();
+
+            // ★ sprawdź, czy turniej w ogóle na to pozwala
+            if (!match.Tournament!.AllowPlayersEnterScores &&
+                User.IsInRole("Player"))
+                return Forbid();
+
+            // ★ czy zalogowany User ↔ Player1 / Player2 ?
+            if (User.IsInRole("Player") && !await CurrentUserPlaysIn(match))
+                return Forbid();
+
+            // pokaż formularz
+            var totalSets = match.Tournament.SetsToWin * 2 - 1;
+            var vm = new MatchViewModel(match, includeScores: true);
+            return View(vm);
+        }
+
+        [HttpPost, ValidateAntiForgeryToken]
+        [Authorize(Roles = "Player,Organizer,Admin")]
+        public async Task<IActionResult> EnterScore(int id, MatchViewModel vm)
+        {
+            var match = await _ctx.Matches
+                .Include(m => m.Tournament)
+                .FirstOrDefaultAsync(m => m.Id == id);
+            if (match is null) return NotFound();
+
+            // ponowne kontrole jak wyżej
+            if (!match.Tournament!.AllowPlayersEnterScores &&
+                !(User.IsInRole("Admin") || User.IsInRole("Organizer")))
+                return Forbid();
+            if (User.IsInRole("Player") && !await CurrentUserPlaysIn(match))
+                return Forbid();
+            if (match.IsApproved && User.IsInRole("Player"))
+            {
+                TempData["Err"] = "Wynik został już zatwierdzony.";
+                return RedirectToAction(nameof(Details), new { id });
+            }
+
+            if (!ModelState.IsValid)
+            {
+                // zwróć formularz z błędami
+                return View(vm);
+            }
+
+            /* -------- zapis -------- */
+            // Walidacja formatów setów (np. 11:9, 13:11)
+            int pointsToWin = match.Tournament!.PointsPerSet;
+
+            foreach (var set in vm.Sets.Where(s => s.Score1.HasValue && s.Score2.HasValue))
+            {
+                var p1 = set.Score1.Value;
+                var p2 = set.Score2.Value;
+                int max = Math.Max(p1, p2);
+                int min = Math.Min(p1, p2);
+
+                // minimalna liczba punktów i przewaga 2 punktów
+                if (max < pointsToWin || (max - min) < 2)
+                {
+                    ModelState.AddModelError("", $"Set {p1}:{p2} jest nieprawidłowy – trzeba zdobyć co najmniej {pointsToWin} punkty i wygrać różnicą 2 punktów.");
+                    return View(vm);
+                }
+                // maksymalna liczba punktów bez przewagi – nie wolno mieć np. 14:4
+                if (max > pointsToWin && (max - min) > 2)
+                {
+                    ModelState.AddModelError("", $"Set {p1}:{p2} jest nieprawidłowy – jeśli przekraczasz {pointsToWin} punktów, dozwolone są tylko wyniki na przewagi, np. {pointsToWin + 1}:{pointsToWin - 1}.");
+                    return View(vm);
+                }
+
+                // nie może być remisu
+                if (p1 == p2)
+                {
+                    ModelState.AddModelError("", $"Set {p1}:{p2} – wynik nie może być remisem.");
+                    return View(vm);
+                }
+            }
+            match.SetScores = vm.BuildSetScores();
+            var (s1, s2) = SetWins(match.SetScores!);
+            int setsToWin = match.Tournament!.SetsToWin;
+
+            if ((s1 == setsToWin && s2 < setsToWin) || (s2 == setsToWin && s1 < setsToWin))
+            {
+                // OK – tylko jeden wygrał dokładnie X setów
+            }
+            else
+            {
+                ModelState.AddModelError("", $"Mecz powinien zakończyć się dokładnie {setsToWin} wygranymi setami jednego z graczy.");
+                return View(vm);
+            }
+            
+            match.Score1 = s1;
+            match.Score2 = s2;
+            match.DatePlayed = vm.DatePlayed;
+            match.EnteredByUserId = _userManager.GetUserId(User); // potrzebny _userManager w ctorze
+            match.IsApproved = User.IsInRole("Organizer") || User.IsInRole("Admin");
+
+            await _ctx.SaveChangesAsync();
+            TempData["Msg"] = match.IsApproved ? "Wynik dodany." : "Wynik czeka na zatwierdzenie.";
+            return RedirectToAction(nameof(Details), new { id });
+        }
+
+        /* ========== pomocnicze ========== */
+        private async Task<bool> CurrentUserPlaysIn(Match m)
+        {
+            var uid = _userManager.GetUserId(User);
+            return await _ctx.Players.AnyAsync(p =>
+                   p.ApplicationUserId == uid &&
+                   (p.Id == m.Player1Id || p.Id == m.Player2Id));
         }
     }
 }

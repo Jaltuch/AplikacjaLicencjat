@@ -1,0 +1,35 @@
+﻿@model TableTenisWebApp.Models.ViewModels.MatchViewModel
+@{
+    ViewData["Title"] = "Wpisz wynik";
+}
+
+<h2>@Model.Player1Name vs @Model.Player2Name</h2>
+
+<form asp-action="EnterScore" method="post">
+    <input type="hidden" asp-for="Id" />
+    <input type="hidden" asp-for="TournamentId" />
+
+    <table class="table">
+        <thead><tr><th>Set</th><th>@Model.Player1Name</th><th>@Model.Player2Name</th></tr></thead>
+        <tbody>
+            @for (int i = 0; i < Model.Sets.Count; i++)
+            {
+                <tr>
+                    <td>@(i + 1)</td>
+                    <td><input asp-for="Sets[@i].Score1" class="form-control" /></td>
+                    <td><input asp-for="Sets[@i].Score2" class="form-control" /></td>
+                </tr>
+            }
+        </tbody>
+    </table>
+    <div class="mb-3">
+        <label asp-for="DatePlayed"></label>
+        <input asp-for="DatePlayed" type="date" class="form-control" />
+    </div>
+
+    <button class="btn btn-primary">Zapisz</button>
+    <a asp-action="Details" asp-controller="Tournaments"
+       asp-route-id="@Model.TournamentId" class="btn btn-link">↩︎ wróć</a>
+</form>
+
+@Html.ValidationSummary(false, "", new { @class = "text-danger" })
