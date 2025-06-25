@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 using TableTenisWebApp.Data;
 using TableTenisWebApp.Models;
 using TableTenisWebApp.Models.ViewModels;
+using TableTenisWebApp.Services;
 using static TableTenisWebApp.Models.CompetitionType;
 
 
@@ -18,8 +19,12 @@ namespace TableTenisWebApp.Controllers
     public class TournamentsController : Controller
     {
         private readonly AppIdentityDbContext _ctx;
-        public TournamentsController(AppIdentityDbContext ctx) => _ctx = ctx;
-
+        private readonly KnockoutService _knockout;
+        public TournamentsController(AppIdentityDbContext ctx, KnockoutService knockout)
+        {
+            _ctx = ctx;
+            _knockout = knockout;
+        }
         /* -----------------------------------------------------------
          *  LISTA + SZCZEGÓŁY (publiczne)
          * ----------------------------------------------------------*/
@@ -44,7 +49,7 @@ namespace TableTenisWebApp.Controllers
 
             /* ---------- RANKING ---------- */
             var standings = t.Matches
-                .Where(m => m.Score1 + m.Score2 > 0)        // tylko rozegrane
+                .Where(m => m.Score1 + m.Score2 > 0 && m.Player1Id != m.Player2Id)  // pomiń BYE  
                 .SelectMany(m => new[]
                 {
                     new { Player = m.Player1, Scored = m.Score1, Lost = m.Score2 },
@@ -64,7 +69,7 @@ namespace TableTenisWebApp.Controllers
                         Lost: lost,
                         SetsPlus: g.Sum(r => r.Scored),
                         SetsMinus: g.Sum(r => r.Lost),
-                        Points: won * 2);
+                        Points: won);
                 })
                 .OrderByDescending(r => r.Points)
                 .ThenByDescending(r => r.SetsPlus - r.SetsMinus)
@@ -184,57 +189,112 @@ namespace TableTenisWebApp.Controllers
         public async Task<IActionResult> Generate(int id)
         {
             var t = await _ctx.Tournaments
-                .Include(x => x.Players).ThenInclude(tp => tp.Player)
-                .Include(x => x.Matches)
-                .FirstOrDefaultAsync(x => x.Id == id);
+        .Include(x => x.Players).ThenInclude(tp => tp.Player)
+        .Include(x => x.Matches)
+        .FirstOrDefaultAsync(x => x.Id == id);
 
             if (t is null) return NotFound();
-            if (t.Matches.Any())              // nie pozwalamy generować 2×
+
+            if (t.Matches.Any())
             {
                 TempData["Err"] = "Terminarz już istnieje.";
                 return RedirectToAction(nameof(Details), new { id });
             }
 
-            // --- wspólne dane ---
-            var rnd = new Random();
-            var players = t.Players.Select(tp => tp.Player).OrderBy(_ => rnd.Next()).ToList();
+            var players = t.Players.Select(tp => tp.Player).OrderBy(p => Guid.NewGuid()).ToList();
 
-            switch (t.Type)
+            if (t.Type == CompetitionType.Knockout)
             {
-                case Knockout:
-                    // 1-round knockout  ▸ paruj sąsiadów
-                    if (players.Count % 2 == 1)
-                    {
-                        TempData["Err"] = "Na drabinkę pucharową potrzebna parzysta liczba graczy.";
-                        return RedirectToAction(nameof(Details), new { id });
-                    }
-                    for (int i = 0; i < players.Count; i += 2)
-                        t.Matches.Add(new Match
-                        {
-                            Player1Id = players[i].Id,
-                            Player2Id = players[i + 1].Id,
-                            DatePlayed = DateTime.Today,
-                            Tournament = t
-                        });
-                    break;
+                if (await _knockout.GenerateFirstRoundAsync(t))
+                    TempData["Msg"] = "Pierwsza runda została wygenerowana.";
+                else
+                    TempData["Err"] = "Nie udało się wygenerować rundy.";
+            }
+            else if (t.Type == CompetitionType.League)
+            {
+                // Dodaj BYE jeśli liczba nieparzysta
+                if (players.Count % 2 == 1)
+                    players.Add(null); // null = wolny los
 
-                case League:
-                    // każdy-z-każdym raz
-                    for (int i = 0; i < players.Count; ++i)
-                        for (int j = i + 1; j < players.Count; ++j)
+                int n = players.Count;
+                int rounds = n - 1;
+                int half = n / 2;
+
+                for (int r = 1; r <= rounds; r++)
+                {
+                    for (int i = 0; i < half; i++)
+                    {
+                        var p1 = players[i];
+                        var p2 = players[n - 1 - i];
+
+                        if (p1 != null && p2 != null)
+                        {
                             t.Matches.Add(new Match
                             {
-                                Player1Id = players[i].Id,
-                                Player2Id = players[j].Id,
-                                DatePlayed = DateTime.Today,
-                                Tournament = t
+                                Tournament = t,
+                                Player1Id = p1.Id,
+                                Player2Id = p2.Id,
+                                RoundNumber = r,
+                                DatePlayed = DateTime.Today.AddDays(r - 1)
                             });
-                    break;
+                        }
+                    }
+
+                    // Round-robin obrót
+                    var temp = players[n - 1];
+                    for (int i = n - 1; i > 1; i--)
+                        players[i] = players[i - 1];
+                    players[1] = temp;
+                }
+
+                TempData["Msg"] = "Terminarz ligowy został wygenerowany.";
             }
 
             await _ctx.SaveChangesAsync();
-            TempData["Msg"] = "Terminarz wygenerowany.";
             return RedirectToAction(nameof(Details), new { id });
         }
+        //GENERATE NEXT ROUND//
+        [HttpPost]
+        public async Task<IActionResult> GenerateNextRound(int id)
+        {
+            var t = await _ctx.Tournaments
+                .Include(x => x.Matches)
+                .FirstOrDefaultAsync(x => x.Id == id);
+
+            if (t is null) return NotFound();
+
+            int currentRound = t.Matches.Max(m => m.RoundNumber);
+            bool allFinished = t.Matches
+                .Where(m => m.RoundNumber == currentRound)
+                .All(m => m.IsApproved);
+
+            if (!allFinished)
+            {
+                TempData["Err"] = "Nie wszystkie mecze tej rundy zostały zatwierdzone.";
+                return RedirectToAction(nameof(Details), new { id });
+            }
+
+            if (await _knockout.GenerateNextRoundAsync(t))
+                TempData["Msg"] = "Wygenerowano kolejną rundę.";
+            else
+                TempData["Err"] = "Turniej zakończony.";
+
+            return RedirectToAction(nameof(Details), new { id });
+        }
+        [AllowAnonymous]
+        public async Task<IActionResult> Bracket(int id)
+        {
+            var t = await _ctx.Tournaments
+                .Include(x => x.Players).ThenInclude(tp => tp.Player)
+                .Include(x => x.Matches)
+                    .ThenInclude(m => m.Player1)
+                .Include(x => x.Matches)
+                    .ThenInclude(m => m.Player2)
+                .FirstOrDefaultAsync(x => x.Id == id);
+
+            return t == null ? NotFound() : View(t);
+        }
+
+
     }
 }

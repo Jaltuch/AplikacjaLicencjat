@@ -1,0 +1,79 @@
+﻿@model TableTenisWebApp.Models.Tournament
+
+@{
+    ViewData["Title"] = "Drabinka turnieju";
+    var rounds = Model.Matches
+        .GroupBy(m => m.RoundNumber)
+        .OrderBy(g => g.Key)
+        .ToList();
+    string? winnerName = null;
+
+    var lastRound = rounds.LastOrDefault();
+    if (lastRound != null && lastRound.Count() == 1)
+    {
+        var finalMatch = lastRound.First();
+        if (finalMatch.IsApproved && finalMatch.Score1 != finalMatch.Score2)
+        {
+            winnerName = finalMatch.Score1 > finalMatch.Score2
+                ? finalMatch.Player1?.Name
+                : finalMatch.Player2?.Name;
+        }
+    }
+
+    Func<int, string> getRoundLabel = matchCount => matchCount switch
+    {
+        1 => "🏆 Finał",
+        2 => "🥈 Półfinał",
+        4 => "🥉 Ćwierćfinał",
+        8 => "1/8 finału",
+        16 => "1/16 finału",
+        32 => "1/32 finału",
+        _ => "Runda"
+    };
+}
+
+<h2>Drabinka – @Model.Name</h2>
+
+@if (!string.IsNullOrEmpty(winnerName))
+{
+    <div class="alert alert-success text-center fs-5 fw-bold mb-4">
+        🏆 Zwycięzca turnieju: @winnerName 🏆
+    </div>
+}
+
+<a asp-action="Details" asp-route-id="@Model.Id" class="btn btn-secondary mb-3">↩ Szczegóły turnieju</a>
+
+<div style="display: flex; gap: 2rem; overflow-x: auto;">
+    @foreach (var round in rounds)
+    {
+        var label = getRoundLabel(round.Count());
+
+        <div>
+            <h5 class="text-center">@label</h5>
+            <div style="display: flex; flex-direction: column; gap: 1rem;">
+                @foreach (var match in round.OrderBy(m => m.DatePlayed))
+                {
+                    <div style="border: 1px solid #ccc; padding: 0.5rem; border-radius: 8px; min-width: 180px;">
+                        @if (match.Player1Id == match.Player2Id)
+                        {
+                            <div><strong>@match.Player1?.Name</strong></div>
+                            <div><em>wolny los</em></div>
+                        }
+                        else
+                        {
+                            <div>@match.Player1?.Name</div>
+                            <div>@match.Player2?.Name</div>
+                            <div>
+                                <strong>@match.Score1 : @match.Score2</strong>
+                                @if (!match.IsApproved)
+                                {
+                                    <small class="text-warning">(niezatw.)</small>
+                                }
+                            </div>
+                        }
+                    </div>
+                }
+            </div>
+        </div>
+    }
+</div>

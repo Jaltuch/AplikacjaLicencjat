@@ -10,6 +10,8 @@ namespace TableTenisWebApp.Models
 
         public bool IsApproved { get; set; } = false;      // Organizer/Admin potwierdził
         public string? EnteredByUserId { get; set; }          // kto wpisał
+        public int RoundNumber { get; set; } = 1;  // domyślnie 1. runda
+
 
 
 

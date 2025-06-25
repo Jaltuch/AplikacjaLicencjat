@@ -14,7 +14,7 @@ namespace TableTenisWebApp.Models
         public CompetitionType Type { get; set; } = CompetitionType.Knockout;
 
         /// <summary> Ile setów trzeba wygrać, by wygrać mecz (np. 3&nbsp;→ BO5) </summary>
-        [Range(1, 7)]
+        [Range(1, 5)]
         public int SetsToWin { get; set; } = 3;
 
         /// <summary> Liczba punktów w secie (zwykle 11).</summary>

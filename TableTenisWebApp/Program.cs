@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using TableTenisWebApp.Data;
 using TableTenisWebApp.Models;
+using TableTenisWebApp.Services;
 
 namespace TableTenisWebApp
 {
@@ -27,6 +28,8 @@ namespace TableTenisWebApp
            
             builder.Services.AddControllersWithViews();
             builder.Services.AddRazorPages();
+            builder.Services.AddScoped<KnockoutService>();
+
 
             var app = builder.Build();
 

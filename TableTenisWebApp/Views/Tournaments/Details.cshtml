@@ -23,74 +23,28 @@
 
 <h2>@Model.Name</h2>
 <p>Od @Model.Start:d @(Model.End is not null ? $"do {Model.End:d}" : "")</p>
-
-<!------------- UCZESTNICY ------------>
-<h4>Uczestnicy (@Model.Players.Count)</h4>
-<ul>
-    @foreach (var tp in Model.Players.OrderBy(p => p.Player.Name))
-    {
-        <li>@tp.Player.Name</li>
-    }
-</ul>
-@if ((User.IsInRole("Organizer") || User.IsInRole("Admin")) && !Model.Matches.Any())
-{
-    <form asp-action="Generate" method="post" class="mb-3">
-        <input type="hidden" name="id" value="@Model.Id" />
-        <button type="submit" class="btn btn-success">
-            🔄 Generuj terminarz
-        </button>
-    </form>
+<p>
+    <span class="badge bg-primary">Typ: @Model.Type</span>
+</p>
+<!------------- ZWYCIĘZCA ------------>
+@{
+    var totalMatches = Model.Matches.Count(m => m.Player1Id != m.Player2Id);
+    var approvedMatches = Model.Matches.Count(m => m.Player1Id != m.Player2Id && m.IsApproved);
+    var playerCount = Model.Players.Count;
+    var expectedMatches = playerCount * (playerCount - 1) / 2;
+     
 }
 
-
-<!------------- MECZE ------------>
-<h4>Mecze (@Model.Matches.Count)</h4>
-<table class="table table-sm table-striped">
-    <thead>
-        <tr>
-            <th>Mecz</th>
-            <th>Wynik</th>
-            <th>Data</th>
-        </tr>
-    </thead>
-    <tbody>
-        @foreach (var m in Model.Matches.OrderBy(m => m.DatePlayed))
-        {
-            <tr>
-                <td>@m.Player1.Name &nbsp;–&nbsp; @m.Player2.Name</td>
-                <td>@m.Score1&nbsp;:&nbsp;@m.Score2</td>
-                <td>@m.DatePlayed:d</td>
-                <td>
-                    @if (m.Score1 + m.Score2 == 0 &&
-                   (
-                   User.IsInRole("Admin") ||
-                   User.IsInRole("Organizer") ||
-                   (Model.AllowPlayersEnterScores &&
-                   User.IsInRole("Player") &&
-                   (UserManager.GetUserId(User) == m.Player1.ApplicationUserId ||
-                   UserManager.GetUserId(User) == m.Player2.ApplicationUserId))
-                   ))
-                    {
-                        <a asp-controller="Matches" asp-action="EnterScore" asp-route-id="@m.Id"
-                           class="btn btn-sm btn-outline-success">Wpisz wynik</a>
-                    }
-                    else
-                    {
-                        @($"{m.Score1} : {m.Score2}")
-                        @if (!m.IsApproved)
-                        {
-                            <small class="text-warning">(niezatw.)</small>
-                        }
-                    }
-
-
-                    
-                </td>
-
-            </tr>
-        }
-    </tbody>
-</table>
+@if (Model.Type == CompetitionType.League && totalMatches == expectedMatches && totalMatches == approvedMatches)
+{
+    var winner = standings.FirstOrDefault();
+    if (winner != null)
+    {
+        <div class="alert alert-success text-center fs-5 fw-bold">
+            🏆 Zwycięzca ligi: @winner.Name 🏆
+        </div>
+    }
+}
 
 <!------------- RANKING ------------>
 @if (standings.Any())
@@ -112,9 +66,16 @@
             @for (int i = 0; i < standings.Count; i++)
             {
                 var r = standings[i];
-                <tr>
+                var isFirst = i == 0;
+                <tr class="@(isFirst ? "table-warning fw-bold" : "")">
                     <td>@(i + 1)</td>
-                    <td>@r.Name</td>
+                    <td>
+                        @r.Name
+                        @if (isFirst)
+                        {
+                            <span title="Lider" class="ms-1">🏆</span>
+                        }
+                    </td>
                     <td>@r.Played</td>
                     <td>@r.Won</td>
                     <td>@r.Lost</td>
@@ -125,6 +86,146 @@
         </tbody>
     </table>
 }
+
+
+
+<!------------- UCZESTNICY ------------>
+<h4>Uczestnicy (@Model.Players.Count)</h4>
+<ul>
+    @foreach (var tp in Model.Players.OrderBy(p => p.Player.Name))
+    {
+        <li>@tp.Player.Name</li>
+    }
+</ul>
+@if ((User.IsInRole("Organizer") || User.IsInRole("Admin")) && !Model.Matches.Any())
+{
+    <form asp-action="Generate" method="post" class="mb-3">
+        <input type="hidden" name="id" value="@Model.Id" />
+        <button type="submit" class="btn btn-success">
+            🔄 Generuj terminarz
+        </button>
+    </form>
+}
+
+<!------------- GENEROWANIE DRABINKI ------------>
+@if ((User.IsInRole("Organizer") || User.IsInRole("Admin"))
+ && Model.Matches.Any()
+ && Model.Type == CompetitionType.Knockout)
+{
+    var lastRound = Model.Matches.Max(m => m.RoundNumber);
+    var roundMatches = Model.Matches.Where(m => m.RoundNumber == lastRound).ToList();
+    bool allFinished = roundMatches.All(m => m.IsApproved);
+    bool isFinal = roundMatches.Count == 1;
+
+    if (allFinished && !isFinal)
+    {
+        <form asp-action="GenerateNextRound" method="post">
+            <input type="hidden" name="id" value="@Model.Id" />
+            <button class="btn btn-info">▶ Wygeneruj kolejną rundę</button>
+        </form>
+    }
+}
+@if (Model.Type == CompetitionType.Knockout)
+{
+    <a asp-action="Bracket" asp-route-id="@Model.Id" class="btn btn-outline-primary">
+        📈 Pokaż drabinkę
+    </a>
+}
+
+
+<!------------- MECZE ------------>
+<h4>Mecze</h4>
+
+@foreach (var group in Model.Matches
+  .OrderBy(m => m.RoundNumber)
+  .ThenBy(m => m.DatePlayed)
+  .GroupBy(m => m.RoundNumber))
+{
+    var matchCount = group.Count();
+    var roundLabel = Model.Type == CompetitionType.League
+        ? $"📅 Kolejka {group.Key}"
+        : matchCount switch
+        {
+            1 => "🏆 Finał",
+            2 => "🥈 Półfinał",
+            4 => "🥉 Ćwierćfinał",
+            8 => "1/8 finału",
+            16 => "1/16 finału",
+            32 => "1/32 finału",
+            _ => $"🥊 Runda {group.Key}"
+        };
+
+    <h4 style="background: #f8f9fa; padding: 0.5rem 1rem; border-left: 5px solid #0d6efd; margin-top: 2rem; border-radius: 4px;">
+        @roundLabel
+    </h4>
+
+
+    <table class="table table-sm table-striped">
+        <thead>
+            <tr>
+                <th>Mecz</th>
+                <th>Wynik</th>
+                <th>Data</th>
+                <th>Akcje</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var m in group)
+            {
+                <tr>
+                    <td>
+                        @if (m.Player1Id == m.Player2Id)
+                        {
+                            <span>@m.Player1?.Name – <em>wolny los</em></span>
+                        }
+                        else
+                        {
+                            <span>@m.Player1?.Name – @m.Player2?.Name</span>
+                        }
+                    </td>
+                    <td>
+                        @if (m.Player1Id == m.Player2Id)
+                        {
+                            <span><em>awans</em></span>
+                        }
+                        else
+                        {
+                            <span>@m.Score1 : @m.Score2</span>
+                            @if (!m.IsApproved)
+                            {
+                                <small class="text-warning">(niezatw.)</small>
+                            }
+                        }
+                    </td>
+                    <td>@m.DatePlayed:d</td>
+                    <td>
+                        @if (m.Score1 + m.Score2 == 0 &&
+                      (
+                      User.IsInRole("Admin") ||
+                      User.IsInRole("Organizer") ||
+                      (Model.AllowPlayersEnterScores &&
+                      User.IsInRole("Player") &&
+                      (UserManager.GetUserId(User) == m.Player1?.ApplicationUserId ||
+                      UserManager.GetUserId(User) == m.Player2?.ApplicationUserId))
+                      ))
+                        {
+                            <a asp-controller="Matches" asp-action="EnterScore" asp-route-id="@m.Id"
+                            class="btn btn-sm btn-outline-success">Wpisz wynik</a>
+                        }
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+
+
+
+
+
+
+
 
 <!------------- AKCJE ADMINA/ORGANIZATORA ------------>
 @if (User.IsInRole("Organizer") || User.IsInRole("Admin"))
