@@ -9,7 +9,7 @@
     public enum CompetitionType
     {
         Knockout = 0,
-        League = 1,
-        Groups = 2
+        League = 1
+        
     }
 }

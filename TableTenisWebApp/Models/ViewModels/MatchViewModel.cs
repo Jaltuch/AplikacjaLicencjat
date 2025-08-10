@@ -15,7 +15,7 @@ namespace TableTenisWebApp.Models.ViewModels
         [Required] public int Player1Id { get; set; }
         [Required] public int Player2Id { get; set; }
 
-        public DateTime DatePlayed { get; set; } = DateTime.Today;
+        public DateTime? DatePlayed { get; set; }
 
         /* ------------------ sety ------------------ */
         [Range(1, 7)]

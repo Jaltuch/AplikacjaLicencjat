@@ -305,11 +305,23 @@ namespace TableTenisWebApp.Controllers
             
             match.Score1 = s1;
             match.Score2 = s2;
-            match.DatePlayed = vm.DatePlayed;
+            match.DatePlayed = (vm.DatePlayed == default ? DateTime.Now : vm.DatePlayed);
             match.EnteredByUserId = _userManager.GetUserId(User); // potrzebny _userManager w ctorze
             match.IsApproved = User.IsInRole("Organizer") || User.IsInRole("Admin");
 
-            await _ctx.SaveChangesAsync();
+
+            await _ctx.SaveChangesAsync(); // zapisz najpierw mecz z IsApproved = true
+
+            var tournament = await _ctx.Tournaments
+                .Include(t => t.Matches)
+                .Include(t => t.Players)
+                .FirstOrDefaultAsync(t => t.Id == match.TournamentId);
+
+            if (tournament != null && tournament.IsFinished && tournament.End == null)
+            {
+                tournament.End = DateTime.Now;
+                await _ctx.SaveChangesAsync();
+            }
             TempData["Msg"] = match.IsApproved ? "Wynik dodany." : "Wynik czeka na zatwierdzenie.";
             return RedirectToAction(nameof(Details), new { id });
         }
@@ -322,5 +334,109 @@ namespace TableTenisWebApp.Controllers
                    p.ApplicationUserId == uid &&
                    (p.Id == m.Player1Id || p.Id == m.Player2Id));
         }
+
+        [Authorize(Roles = "Organizer,Admin")]
+        public async Task<IActionResult> ReviewMatches(int tournamentId)
+        {
+            var tournament = await _ctx.Tournaments
+                .Include(t => t.Matches)
+                    .ThenInclude(m => m.Player1).ThenInclude(p => p.ApplicationUser)
+                .Include(t => t.Matches)
+                    .ThenInclude(m => m.Player2).ThenInclude(p => p.ApplicationUser)
+                .FirstOrDefaultAsync(t => t.Id == tournamentId);
+
+            if (tournament == null) return NotFound();
+
+            if (User.IsInRole("Organizer") && tournament.CreatedById != _userManager.GetUserId(User))
+                return Forbid();
+
+            var matchesToReview = tournament.Matches
+                .Where(m => !m.IsApproved && m.Player1Id != m.Player2Id)
+                .OrderBy(m => m.RoundNumber)
+                .ToList();
+
+            return View(matchesToReview);
+        }
+        [Authorize(Roles = "Organizer,Admin")]
+        public async Task<IActionResult> EditScore(int id)
+        {
+            var match = await _ctx.Matches
+                .Include(m => m.Tournament)
+                .Include(m => m.Player1).ThenInclude(p => p.ApplicationUser)
+                .Include(m => m.Player2).ThenInclude(p => p.ApplicationUser)
+                .FirstOrDefaultAsync(m => m.Id == id);
+
+            if (match == null) return NotFound();
+
+            if (User.IsInRole("Organizer") && match.Tournament.CreatedById != _userManager.GetUserId(User))
+                return Forbid();
+
+            return View(match);
+        }
+
+        [HttpPost, ValidateAntiForgeryToken]
+        public async Task<IActionResult> EditScore(int id, int score1, int score2, bool approve)
+        {
+            var match = await _ctx.Matches
+                .Include(m => m.Tournament)
+                .FirstOrDefaultAsync(m => m.Id == id);
+
+            if (match == null) return NotFound();
+
+            if (User.IsInRole("Organizer") && match.Tournament.CreatedById != _userManager.GetUserId(User))
+                return Forbid();
+
+            // Zakaz edycji starych rund w Knockout
+            var latestRound = match.Tournament.Matches.Max(m => m.RoundNumber);
+            if (match.Tournament.Type == CompetitionType.Knockout && match.RoundNumber < latestRound)
+            {
+                TempData["Err"] = "Nie można edytować wyników z poprzednich rund.";
+                return RedirectToAction("Details", "Tournaments", new { id = match.TournamentId });
+            }
+
+            match.Score1 = score1;
+            match.Score2 = score2;
+            if (match.DatePlayed == null && (match.Score1 + match.Score2) > 0)
+                match.DatePlayed = DateTime.Now;
+            match.IsApproved = approve;
+
+            await _ctx.SaveChangesAsync();
+            TempData["Msg"] = "Wynik został zapisany.";
+            return RedirectToAction("Details", "Tournaments", new { id = match.TournamentId });
+        }
+        [HttpPost]
+        [Authorize(Roles = "Organizer,Admin")]
+        public async Task<IActionResult> ApproveMatch(int id)
+        {
+            var match = await _ctx.Matches
+                .Include(m => m.Tournament)
+                    .ThenInclude(t => t.Matches)
+                .FirstOrDefaultAsync(m => m.Id == id);
+
+            if (match == null) return NotFound();
+
+            if (User.IsInRole("Organizer") && match.Tournament.CreatedById != _userManager.GetUserId(User))
+                return Forbid();
+
+            match.IsApproved = true;
+            await _ctx.SaveChangesAsync(); // najpierw zapisz zmianę (zatwierdzenie)
+
+            var tournament = await _ctx.Tournaments
+                .Include(t => t.Matches)
+                .Include(t => t.Players)
+                .FirstOrDefaultAsync(t => t.Id == match.TournamentId);
+
+            if (tournament != null && tournament.IsFinished && tournament.End == null)
+            {
+                tournament.End = DateTime.Now;
+                await _ctx.SaveChangesAsync();
+            }
+           
+
+            TempData["Msg"] = "Mecz został zatwierdzony.";
+            return RedirectToAction("ReviewMatches", new { tournamentId = match.TournamentId });
+        }
+
+
     }
 }

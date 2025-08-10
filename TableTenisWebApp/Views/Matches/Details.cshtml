@@ -7,12 +7,15 @@
 }
 
 <h2>Szczegóły meczu</h2>
+
 <table class="table table-bordered">
     <tr>
         <th>Zawodnik 1</th>
         <td>
             <span class="@(zwyciezca == 1 ? "fw-bold text-success" : "")">
-                @Model.Player1?.Name
+                <a asp-controller="Players" asp-action="Details" asp-route-id="@Model.Player1.Id" class="entity-link">
+                    @Model.Player1?.Name
+                </a>
                 @(zwyciezca == 1 ? " 🏆" : "")
             </span>
         </td>
@@ -21,9 +24,23 @@
         <th>Zawodnik 2</th>
         <td>
             <span class="@(zwyciezca == 2 ? "fw-bold text-success" : "")">
-                @Model.Player2?.Name
+                <a asp-controller="Players" asp-action="Details" asp-route-id="@Model.Player2.Id" class="entity-link">
+                    @Model.Player2?.Name
+                </a>
+
                 @(zwyciezca == 2 ? " 🏆" : "")
             </span>
+        </td>
+    </tr>
+    <tr>
+        <th>Turniej</th>
+        <td>
+            @if (Model.Tournament != null)
+            {
+                <a asp-controller="Tournaments" asp-action="Details" asp-route-id="@Model.Tournament.Id" class="entity-link">
+                    @Model.Tournament.Name
+                </a>
+            }
         </td>
     </tr>
     <tr>
@@ -35,27 +52,66 @@
     <tr>
         <th>Wyniki setów</th>
         <td>
-            <ul class="mb-0">
-                @if (sety != null)
-                {
-                    int nr = 1;
-                    foreach (var set in sety)
-                    {
-                        <li>Set @nr: <span class="fw-bold">@set</span></li>
-                        nr++;
+            @if (sety != null && sety.Any(s => s != "0:0"))
+            {
+                <div class="d-flex flex-wrap gap-2">
+                    @{
+                        int nr = 1;
+                        foreach (var set in sety)
+                        {
+                            var scores = set.Split(':');
+                            if (scores.Length == 2 && (scores[0] != "0" || scores[1] != "0"))
+                            {
+                                <span class="badge bg-secondary px-3 py-2">
+                                    Set @nr: <strong>@set</strong>
+                                </span>
+                                ;
+                                nr++;
+                            }
+                        }
                     }
-                }
-                else
-                {
-                    <li>-</li>
-                }
-            </ul>
+                </div>
+            }
+            else
+            {
+                <span>-</span>
+            }
         </td>
     </tr>
     <tr>
         <th>Data meczu</th>
-        <td>@Model.DatePlayed.ToString("yyyy-MM-dd")</td>
+        <td>@Model.DatePlayed?.ToString("yyyy-MM-dd")</td>
     </tr>
 </table>
 
-<a asp-action="Index" class="btn btn-outline-secondary mt-3">Powrót do listy meczów</a>
+@{
+    string backUrl = null;
+
+    var refererRaw = Context.Request.Headers["Referer"].ToString();
+    if (!string.IsNullOrEmpty(refererRaw))
+    {
+        if (Uri.TryCreate(refererRaw, UriKind.Absolute, out var refUri))
+        {
+            // ten sam host? (i opcjonalnie ten sam scheme)
+            var req = Context.Request;
+            var sameHost = string.Equals(refUri.Host, req.Host.Host, StringComparison.OrdinalIgnoreCase);
+            if (sameHost)
+            {
+                backUrl = refUri.PathAndQuery; // lokalna ścieżka, bez domeny
+            }
+        }
+        else if (Url.IsLocalUrl(refererRaw))
+        {
+            backUrl = refererRaw;
+        }
+    }
+}
+
+@if (!string.IsNullOrEmpty(backUrl))
+{
+    <a href="@backUrl" class="btn btn-outline-secondary mt-3">↩ Wróć</a>
+}
+
+
+
+

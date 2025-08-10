@@ -15,8 +15,8 @@
         if (finalMatch.IsApproved && finalMatch.Score1 != finalMatch.Score2)
         {
             winnerName = finalMatch.Score1 > finalMatch.Score2
-                ? finalMatch.Player1?.Name
-                : finalMatch.Player2?.Name;
+                ? finalMatch.Player1?.ApplicationUser?.FirstName + " " + finalMatch.Player1?.ApplicationUser?.LastName
+                : finalMatch.Player2?.ApplicationUser?.FirstName + " " + finalMatch.Player2?.ApplicationUser?.LastName;
         }
     }
 
@@ -32,6 +32,67 @@
     };
 }
 
+<style>
+    .bracket-container {
+        display: flex;
+        gap: 3rem;
+        overflow-x: auto;
+        padding: 1rem 0;
+    }
+
+    .bracket-round {
+        display: flex;
+        flex-direction: column;
+        gap: 2rem;
+        min-width: 200px;
+        align-items: center;
+    }
+
+    .match-card {
+        
+        background: #ffffff;
+        border: 2px solid #dee2e6;
+        border-radius: 10px;
+        padding: 1rem;
+        width: 180px;
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.05);
+        text-align: center;
+        transition: transform 0.1s, box-shadow 0.1s;
+        cursor: pointer;
+    }
+
+    .match-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 12px rgba(0, 0, 0, 0.08);
+        
+    }
+    
+
+    .match-player {
+        margin-bottom: 0.2rem;
+    }
+
+    .winner {
+        color: #198754;
+        font-weight: bold;
+    }
+
+    .round-header {
+        font-size: 1.1rem;
+        font-weight: 600;
+        text-align: center;
+    }
+
+    .connector {
+        position: absolute;
+        top: 50%;
+        right: -1.5rem;
+        width: 1.5rem;
+        height: 2px;
+        background: #ccc;
+    }
+</style>
+
 <h2>Drabinka – @Model.Name</h2>
 
 @if (!string.IsNullOrEmpty(winnerName))
@@ -41,39 +102,56 @@
     </div>
 }
 
-<a asp-action="Details" asp-route-id="@Model.Id" class="btn btn-secondary mb-3">↩ Szczegóły turnieju</a>
+<a asp-action="Details" asp-route-id="@Model.Id" class="btn btn-secondary mb-3">
+    <i class="bi bi-box-arrow-left"></i> Szczegóły turnieju
+</a>
 
-<div style="display: flex; gap: 2rem; overflow-x: auto;">
+<div class="bracket-container">
     @foreach (var round in rounds)
     {
         var label = getRoundLabel(round.Count());
 
-        <div>
-            <h5 class="text-center">@label</h5>
-            <div style="display: flex; flex-direction: column; gap: 1rem;">
-                @foreach (var match in round.OrderBy(m => m.DatePlayed))
-                {
-                    <div style="border: 1px solid #ccc; padding: 0.5rem; border-radius: 8px; min-width: 180px;">
-                        @if (match.Player1Id == match.Player2Id)
-                        {
-                            <div><strong>@match.Player1?.Name</strong></div>
-                            <div><em>wolny los</em></div>
-                        }
-                        else
-                        {
-                            <div>@match.Player1?.Name</div>
-                            <div>@match.Player2?.Name</div>
-                            <div>
-                                <strong>@match.Score1 : @match.Score2</strong>
-                                @if (!match.IsApproved)
-                                {
-                                    <small class="text-warning">(niezatw.)</small>
-                                }
-                            </div>
-                        }
-                    </div>
-                }
-            </div>
+        <div class="bracket-round">
+            <h5 class="round-header">@label</h5>
+            @foreach (var match in round.OrderBy(m => m.DatePlayed))
+            {
+                <div class="match-card" onclick="location.href='@Url.Action("Details", "Matches", new { id = match.Id })'">
+                    @if (match.Player1Id == match.Player2Id)
+                    {
+                        <div><strong>@(match.Player1?.ApplicationUser?.FirstName) @(match.Player1?.ApplicationUser?.LastName)</strong></div>
+                        <div><em>wolny los</em></div>
+                    }
+                    else
+                    {
+                        var p1Win = match.Score1 > match.Score2;
+                        var p2Win = match.Score2 > match.Score1;
+
+                        <div>
+                            <a asp-controller="Players" asp-action="Details" asp-route-id="@match.Player1Id"
+                               class="entity-link @(p1Win ? "text-success fw-bold" : "")"
+                               onclick="event.stopPropagation();return true;">
+                                @match.Player1?.ApplicationUser?.FirstName @match.Player1?.ApplicationUser?.LastName
+                            </a>
+                        </div>
+                        <div>
+                            <a asp-controller="Players" asp-action="Details" asp-route-id="@match.Player2Id"
+                               class="entity-link @(p2Win ? "text-success fw-bold" : "")"
+                               onclick="event.stopPropagation();return true;">
+                                @match.Player2?.ApplicationUser?.FirstName @match.Player2?.ApplicationUser?.LastName
+                            </a>
+                        </div>
+                        <div>
+                            <strong>@match.Score1 : @match.Score2</strong>
+                            @if (!match.IsApproved)
+                            {
+                                <small class="text-warning">(niezatw.)</small>
+                            }
+                        </div>
+                    }
+                </div>
+
+
+            }
         </div>
     }
 </div>

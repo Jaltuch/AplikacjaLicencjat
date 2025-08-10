@@ -1,4 +1,5 @@
 ﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.EntityFrameworkCore;
@@ -15,15 +16,18 @@ using static TableTenisWebApp.Models.CompetitionType;
 
 namespace TableTenisWebApp.Controllers
 {
-    [Authorize(Roles = "Organizer,Admin")]
+    [Authorize]
     public class TournamentsController : Controller
     {
         private readonly AppIdentityDbContext _ctx;
         private readonly KnockoutService _knockout;
-        public TournamentsController(AppIdentityDbContext ctx, KnockoutService knockout)
+        private readonly UserManager<ApplicationUser> _userManager;
+
+        public TournamentsController(AppIdentityDbContext ctx, KnockoutService knockout, UserManager<ApplicationUser> userManager)
         {
             _ctx = ctx;
             _knockout = knockout;
+            _userManager = userManager;
         }
         /* -----------------------------------------------------------
          *  LISTA + SZCZEGÓŁY (publiczne)
@@ -31,7 +35,28 @@ namespace TableTenisWebApp.Controllers
 
         [AllowAnonymous]
         public async Task<IActionResult> Index()
-            => View(await _ctx.Tournaments.AsNoTracking().ToListAsync());
+        {
+            var currentUserId = _userManager.GetUserId(User);
+
+            var tournaments = await _ctx.Tournaments
+                .Include(t => t.Players)
+                .Include(t => t.Matches)
+                .AsNoTracking()
+                .ToListAsync();
+            var myTournaments = tournaments
+                .Where(t => t.CreatedById == currentUserId)
+                .ToList();
+            var otherTournaments = tournaments
+                .Where(t => t.CreatedById != currentUserId)
+                .ToList();
+            ViewBag.MyTournaments = myTournaments;
+            ViewBag.OtherTournaments = otherTournaments;
+
+            
+
+            return View();
+        }
+             
 
         [AllowAnonymous]
         public async Task<IActionResult> Details(int? id)
@@ -39,7 +64,7 @@ namespace TableTenisWebApp.Controllers
             if (id is null) return NotFound();
 
             var t = await _ctx.Tournaments
-                .Include(x => x.Players).ThenInclude(tp => tp.Player)
+                .Include(x => x.Players).ThenInclude(tp => tp.Player).ThenInclude(p => p.ApplicationUser)
                 .Include(x => x.Matches).ThenInclude(m => m.Player1).ThenInclude(p => p.ApplicationUser)
                 .Include(x => x.Matches).ThenInclude(m => m.Player2).ThenInclude(p => p.ApplicationUser)
                 .AsNoTracking()
@@ -63,7 +88,8 @@ namespace TableTenisWebApp.Controllers
 
                     return new TournamentStandingRow(
                         PlayerId: g.Key,
-                        Name: g.First().Player!.Name,
+                        Name: g.First().Player!.ApplicationUser.FirstName + " " + g.First().Player!.ApplicationUser.LastName
+                        ,
                         Played: won + lost,
                         Won: won,
                         Lost: lost,
@@ -79,11 +105,123 @@ namespace TableTenisWebApp.Controllers
             ViewBag.Standings = standings;
             return View(t);
         }
+        /* -----------------------------------------------------------
+         *  SIGNUP
+         * ----------------------------------------------------------*/
+
+        [HttpPost]
+        [Authorize(Roles = "Player")]
+        public async Task<IActionResult> Signup(int id)
+        {
+            var userId = _userManager.GetUserId(User);
+
+            // Pobierz turniej wraz z graczami
+            var tournament = await _ctx.Tournaments
+                .Include(t => t.Players)
+                    .ThenInclude(tp => tp.Player)
+                .FirstOrDefaultAsync(t => t.Id == id);
+
+            if (tournament == null)
+            {
+                TempData["Err"] = "Turniej nie istnieje.";
+                return RedirectToAction("Index");
+            }
+
+            if (!tournament.IsOpenForSignup)
+            {
+                TempData["Err"] = "Zapisy do tego turnieju są zamknięte.";
+                return RedirectToAction("Details", new { id });
+            }
+           
+
+
+            // Znajdź gracza powiązanego z aktualnym użytkownikiem
+            var player = await _ctx.Players
+                .FirstOrDefaultAsync(p => p.ApplicationUserId == userId);
+
+            if (player == null)
+            {
+                TempData["Err"] = "Nie jesteś przypisany jako zawodnik.";
+                return RedirectToAction("Details", new { id });
+            }
+
+            // Sprawdź, czy gracz już jest zapisany
+            bool alreadySignedUp = tournament.Players.Any(tp => tp.PlayerId == player.Id);
+
+            if (alreadySignedUp)
+            {
+                TempData["Err"] = "Jesteś już zapisany do tego turnieju.";
+                return RedirectToAction("Details", new { id });
+            }
+
+            // Zapisz zawodnika do turnieju
+            _ctx.TournamentPlayers.Add(new TournamentPlayer
+            {
+                TournamentId = id,
+                PlayerId = player.Id
+            });
+
+            await _ctx.SaveChangesAsync();
+            TempData["Msg"] = "Zapisano do turnieju!";
+            return RedirectToAction("Details", new { id });
+        }
+        /* -----------------------------------------------------------
+         *  WITHDRAW
+         * ----------------------------------------------------------*/
+        [HttpPost]
+        [Authorize(Roles = "Player")]
+        public async Task<IActionResult> Withdraw(int id)
+        {
+            var userId = _userManager.GetUserId(User);
+
+            var tournament = await _ctx.Tournaments
+                .Include(t => t.Players)
+                .ThenInclude(tp => tp.Player)
+                .FirstOrDefaultAsync(t => t.Id == id);
+
+            if (tournament == null)
+            {
+                TempData["Err"] = "Turniej nie istnieje.";
+                return RedirectToAction("Index");
+            }
+
+            if (!tournament.IsOpenForSignup)
+            {
+                TempData["Err"] = "Nie można już wypisać się z tego turnieju.";
+                return RedirectToAction("Details", new { id });
+            }
+
+            var player = await _ctx.Players
+                .FirstOrDefaultAsync(p => p.ApplicationUserId == userId);
+
+            if (player == null)
+            {
+                TempData["Err"] = "Nie jesteś przypisany jako zawodnik.";
+                return RedirectToAction("Details", new { id });
+            }
+
+            var tournamentPlayer = tournament.Players
+                .FirstOrDefault(tp => tp.PlayerId == player.Id);
+
+            if (tournamentPlayer == null)
+            {
+                TempData["Err"] = "Nie jesteś zapisany do tego turnieju.";
+                return RedirectToAction("Details", new { id });
+            }
+
+            _ctx.TournamentPlayers.Remove(tournamentPlayer);
+            await _ctx.SaveChangesAsync();
+
+            TempData["Msg"] = "Zostałeś wypisany z turnieju.";
+            return RedirectToAction("Details", new { id });
+        }
+
+
 
         /* -----------------------------------------------------------
          *  CREATE
          * ----------------------------------------------------------*/
-
+        [Authorize(Roles = "Organizer,Admin")]
         public IActionResult Create()
         {
             ViewBag.AllPlayers = _ctx.Players.ToList();
@@ -99,6 +237,7 @@ namespace TableTenisWebApp.Controllers
         [HttpPost, ValidateAntiForgeryToken]
         public async Task<IActionResult> Create(Tournament t, int[] selectedPlayers)
         {
+            t.CreatedById = _userManager.GetUserId(User);
             if (!ModelState.IsValid)
             {
                 ViewBag.AllPlayers = _ctx.Players.ToList();
@@ -116,15 +255,21 @@ namespace TableTenisWebApp.Controllers
         /* -----------------------------------------------------------
          *  EDIT
          * ----------------------------------------------------------*/
-
+        [Authorize(Roles = "Organizer,Admin")]
         public async Task<IActionResult> Edit(int? id)
         {
+            
+
             if (id is null) return NotFound();
 
             var t = await _ctx.Tournaments
                               .Include(x => x.Players)
                               .FirstOrDefaultAsync(x => x.Id == id);
             if (t is null) return NotFound();
+            if (User.IsInRole("Organizer") && t.CreatedById != _userManager.GetUserId(User))
+                return Forbid(); // 403 - nie twoja liga
+
+            if (t.HasStarted) return Forbid();
 
             ViewBag.Types = new SelectList(
                 Enum.GetValues(typeof(CompetitionType))
@@ -140,6 +285,8 @@ namespace TableTenisWebApp.Controllers
         [HttpPost, ValidateAntiForgeryToken]
         public async Task<IActionResult> Edit(int id, Tournament t, int[] selectedPlayers)
         {
+            if (User.IsInRole("Organizer") && t.CreatedById != _userManager.GetUserId(User))
+                return Forbid(); // 403 - nie twoja liga
             if (id != t.Id) return NotFound();
 
             if (!ModelState.IsValid)
@@ -152,6 +299,7 @@ namespace TableTenisWebApp.Controllers
             var dbT = await _ctx.Tournaments
                                 .Include(x => x.Players)
                                 .FirstAsync(x => x.Id == id);
+            if (dbT.HasStarted) return Forbid();
 
             dbT.Name = t.Name;
             dbT.Start = t.Start;
@@ -171,27 +319,73 @@ namespace TableTenisWebApp.Controllers
 
         public async Task<IActionResult> Delete(int? id)
         {
+            
             if (id is null) return NotFound();
             var t = await _ctx.Tournaments.FindAsync(id);
+            if (User.IsInRole("Organizer") && t.CreatedById != _userManager.GetUserId(User))
+                return Forbid(); // 403 - nie twoja liga
+            if (t.HasStarted) return Forbid();
             return t is null ? NotFound() : View(t);
         }
 
         [HttpPost, ActionName("Delete"), ValidateAntiForgeryToken]
         public async Task<IActionResult> DeleteConfirmed(int id)
         {
+            
             var t = await _ctx.Tournaments.FindAsync(id);
+            if (User.IsInRole("Organizer") && t.CreatedById != _userManager.GetUserId(User))
+                return Forbid(); // 403 - nie twoja liga
+            if (t.HasStarted) return Forbid();
             if (t is not null) _ctx.Tournaments.Remove(t);
             await _ctx.SaveChangesAsync();
             return RedirectToAction(nameof(Index));
         }
+        // ---------- START TOURNAMENT ----------
+        [HttpPost]
+        [Authorize(Roles = "Organizer,Admin")]
+        public async Task<IActionResult> StartTournament(int id)
+        {
+            var userId = _userManager.GetUserId(User);
+            var tournament = await _ctx.Tournaments
+                .FirstOrDefaultAsync(t => t.Id == id);
+
+            if (tournament == null)
+            {
+                TempData["Err"] = "Turniej nie istnieje.";
+                return RedirectToAction("Index");
+            }
+
+            if (!User.IsInRole("Admin") && tournament.CreatedById != userId)
+            {
+                TempData["Err"] = "Nie masz uprawnień do rozpoczęcia tego turnieju.";
+                return RedirectToAction("Details", new { id });
+            }
+
+            if (tournament.HasStarted)
+            {
+                TempData["Err"] = "Turniej już został rozpoczęty.";
+                return RedirectToAction("Details", new { id });
+            }
+
+            tournament.HasStarted = true;
+            tournament.Start = DateTime.Now;
+            await _ctx.SaveChangesAsync();
+
+            TempData["Msg"] = "Turniej został rozpoczęty.";
+            return RedirectToAction("Details", new { id });
+        }
+
         // ---------- GENERATE FIXTURES ----------
         [HttpPost, ValidateAntiForgeryToken]
         public async Task<IActionResult> Generate(int id)
         {
+            
             var t = await _ctx.Tournaments
         .Include(x => x.Players).ThenInclude(tp => tp.Player)
         .Include(x => x.Matches)
         .FirstOrDefaultAsync(x => x.Id == id);
+            if (User.IsInRole("Organizer") && t.CreatedById != _userManager.GetUserId(User))
+                return Forbid(); // 403 - nie twoja liga
 
             if (t is null) return NotFound();
 
@@ -235,7 +429,7 @@ namespace TableTenisWebApp.Controllers
                                 Player1Id = p1.Id,
                                 Player2Id = p2.Id,
                                 RoundNumber = r,
-                                DatePlayed = DateTime.Today.AddDays(r - 1)
+                                
                             });
                         }
                     }
@@ -257,9 +451,12 @@ namespace TableTenisWebApp.Controllers
         [HttpPost]
         public async Task<IActionResult> GenerateNextRound(int id)
         {
+            
             var t = await _ctx.Tournaments
                 .Include(x => x.Matches)
                 .FirstOrDefaultAsync(x => x.Id == id);
+            if (User.IsInRole("Organizer") && t.CreatedById != _userManager.GetUserId(User))
+                return Forbid(); // 403 - nie twoja liga
 
             if (t is null) return NotFound();
 
@@ -275,9 +472,16 @@ namespace TableTenisWebApp.Controllers
             }
 
             if (await _knockout.GenerateNextRoundAsync(t))
+            {
                 TempData["Msg"] = "Wygenerowano kolejną rundę.";
+            }
             else
+            {
+                t.End = DateTime.Now;
+                await _ctx.SaveChangesAsync();
                 TempData["Err"] = "Turniej zakończony.";
+            }
+
 
             return RedirectToAction(nameof(Details), new { id });
         }
@@ -285,16 +489,15 @@ namespace TableTenisWebApp.Controllers
         public async Task<IActionResult> Bracket(int id)
         {
             var t = await _ctx.Tournaments
-                .Include(x => x.Players).ThenInclude(tp => tp.Player)
-                .Include(x => x.Matches)
-                    .ThenInclude(m => m.Player1)
-                .Include(x => x.Matches)
-                    .ThenInclude(m => m.Player2)
+                .Include(x => x.Players).ThenInclude(tp => tp.Player).ThenInclude(p => p.ApplicationUser)
+                .Include(x => x.Matches).ThenInclude(m => m.Player1).ThenInclude(p => p.ApplicationUser)
+                .Include(x => x.Matches).ThenInclude(m => m.Player2).ThenInclude(p => p.ApplicationUser)
                 .FirstOrDefaultAsync(x => x.Id == id);
 
             return t == null ? NotFound() : View(t);
         }
 
+        
 
     }
 }

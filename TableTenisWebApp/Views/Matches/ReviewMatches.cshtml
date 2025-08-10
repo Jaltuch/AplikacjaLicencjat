@@ -1,0 +1,50 @@
+﻿@model List<TableTenisWebApp.Models.Match>
+
+@{
+    ViewData["Title"] = "Zatwierdzanie wyników";
+}
+
+<h2>Zatwierdź wyniki</h2>
+
+@if (!Model.Any())
+{
+    <div class="alert alert-info">Brak meczów do zatwierdzenia.</div>
+}
+else
+{
+    <table class="table table-bordered">
+        <thead>
+            <tr>
+                <th>Runda</th>
+                <th>Zawodnicy</th>
+                <th>Wynik</th>
+                <th>Data</th>
+                <th>Akcja</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var m in Model)
+            {
+                <tr>
+                    <td>@m.RoundNumber</td>
+                    <td>
+                        @m.Player1?.ApplicationUser?.FirstName @m.Player1?.ApplicationUser?.LastName
+                        vs
+                        @m.Player2?.ApplicationUser?.FirstName @m.Player2?.ApplicationUser?.LastName
+                    </td>
+                    <td>
+                        @m.Score1 : @m.Score2
+                        <span class="text-warning">(niezatw.)</span>
+                    </td>
+                    <td>@m.DatePlayed?.ToShortDateString()</td>
+                    <td>
+                        <a asp-action="EditScore" asp-route-id="@m.Id" class="btn btn-sm btn-outline-primary">
+                            ✏️ Edytuj / Zatwierdź
+                        </a>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+<a asp-action="Index" asp-controller="Tournaments" class="btn btn-secondary">↩ Wróć do turniejów</a>

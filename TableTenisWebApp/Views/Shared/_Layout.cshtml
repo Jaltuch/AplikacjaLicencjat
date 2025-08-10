@@ -1,5 +1,5 @@
 ﻿@using Microsoft.AspNetCore.Identity
-@using TableTenisWebApp.Models          <!-- ApplicationUser -->
+@using TableTenisWebApp.Models
 @inject SignInManager<ApplicationUser> SignInManager
 @inject UserManager<ApplicationUser> UserManager
 
@@ -12,6 +12,7 @@
     <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.min.css" />
     <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
     <link rel="stylesheet" href="~/TableTenisWebApp.styles.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/css/custom.css" asp-append-version="true" />
 </head>
 <body>
     <header>
@@ -24,40 +25,23 @@
                 </button>
                 <div class="navbar-collapse collapse d-sm-inline-flex justify-content-between">
                     <ul class="navbar-nav flex-grow-1">
-                        <li class="nav-item">
-                            <a class="nav-link text-dark" asp-area="" asp-controller="Home" asp-action="Index">Strona główna</a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link text-dark" asp-area="" asp-controller="Players" asp-action="Index">Zawodnicy</a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link text-dark" asp-area="" asp-controller="Matches" asp-action="Index">Mecze</a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link text-dark"
-                               asp-area=""
-                               asp-controller="Tournaments"
-                               asp-action="Index">Turnieje</a>
-                        </li>
-
-                        <li class="nav-item">
-                            <a class="nav-link text-dark" asp-area="" asp-controller="Players" asp-action="Ranking">Ranking</a>
-                        </li>
+                        <li class="nav-item"><a class="nav-link text-dark" asp-controller="Home" asp-action="Index">Strona główna</a></li>
+                        <li class="nav-item"><a class="nav-link text-dark" asp-controller="Players" asp-action="Index">Zawodnicy</a></li>
+                        <li class="nav-item"><a class="nav-link text-dark" asp-controller="Matches" asp-action="Index">Mecze</a></li>
+                        <li class="nav-item"><a class="nav-link text-dark" asp-controller="Tournaments" asp-action="Index">Turnieje</a></li>
+                        <li class="nav-item"><a class="nav-link text-dark" asp-controller="Players" asp-action="Ranking">Ranking</a></li>
                     </ul>
                     <ul class="navbar-nav">
-                        @* Panel admina – tylko rola Admin *@
                         @if (User.IsInRole("Admin"))
                         {
-                            <li class="nav-item">
-                                <a class="nav-link text-dark" asp-controller="Admin" asp-action="Index">Panel&nbsp;admina</a>
-                            </li>
+                            <li class="nav-item"><a class="nav-link text-dark" asp-controller="Admin" asp-action="Index">Panel admina</a></li>
                         }
 
                         @if (SignInManager.IsSignedIn(User))
                         {
                             <li class="nav-item">
                                 <a class="nav-link text-dark" asp-area="Identity" asp-page="/Account/Manage/Index">
-                                    Witaj,&nbsp;@User.Identity?.Name!
+                                    Witaj, @User.Identity?.Name!
                                 </a>
                             </li>
                             <li class="nav-item">
@@ -68,34 +52,43 @@
                         }
                         else
                         {
-                            <li class="nav-item">
-                                <a class="nav-link text-dark" asp-area="Identity" asp-page="/Account/Login">Logowanie</a>
-                            </li>
-                            <li class="nav-item">
-                                <a class="nav-link text-dark" asp-area="Identity" asp-page="/Account/Register">Rejestracja</a>
-                            </li>
+                            <li class="nav-item"><a class="nav-link text-dark" asp-area="Identity" asp-page="/Account/Login">Logowanie</a></li>
+                            <li class="nav-item"><a class="nav-link text-dark" asp-area="Identity" asp-page="/Account/Register">Rejestracja</a></li>
                         }
                     </ul>
-
-
                 </div>
             </div>
         </nav>
     </header>
+
     <div class="container">
         <main role="main" class="pb-3">
             @RenderBody()
         </main>
     </div>
 
-    <footer class="border-top footer text-muted">
+    <footer class="footer text-muted">
         <div class="container">
-            &copy; 2025 - TableTenisWebApp - <a asp-area="" asp-controller="Home" asp-action="Privacy">Privacy</a>
+            &copy; 2025 - TableTenisWebApp - <a asp-controller="Home" asp-action="Privacy">Privacy</a>
         </div>
     </footer>
+
     <script src="~/lib/jquery/dist/jquery.min.js"></script>
     <script src="~/lib/bootstrap/dist/js/bootstrap.bundle.min.js"></script>
     <script src="~/js/site.js" asp-append-version="true"></script>
+    <script>
+        document.addEventListener("DOMContentLoaded", function () {
+            document.querySelectorAll(".clickable-row").forEach(row => {
+                row.addEventListener("click", function (e) {
+                    // Jeżeli kliknięto w link lub przycisk w wierszu, nie przechodź automatycznie
+                    if (e.target.tagName.toLowerCase() === 'a' || e.target.closest('button')) return;
+                    window.location = this.dataset.href;
+                });
+            });
+        });
+    </script>
+
+
     @await RenderSectionAsync("Scripts", required: false)
 </body>
 </html>

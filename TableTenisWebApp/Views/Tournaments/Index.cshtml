@@ -1,6 +1,8 @@
 ﻿@model IEnumerable<TableTenisWebApp.Models.Tournament>
 @{
     ViewData["Title"] = "Turnieje";
+    var myTournaments = ViewBag.MyTournaments as List<TableTenisWebApp.Models.Tournament> ?? new();
+    var otherTournaments = ViewBag.OtherTournaments as List<TableTenisWebApp.Models.Tournament> ?? new();
 }
 
 <h1 class="mb-3">Turnieje</h1>
@@ -8,36 +10,108 @@
 @if (User.IsInRole("Organizer") || User.IsInRole("Admin"))
 {
     <p>
-        <a asp-action="Create" class="btn btn-primary">Dodaj turniej</a>
+        <a asp-action="Create" class="btn btn-primary">➕ Dodaj turniej</a>
     </p>
 }
 
-<table class="table table-striped">
-    <thead>
-        <tr>
-            <th>Nazwa</th>
-            <th>Start</th>
-            <th>Koniec</th>
-            <th></th>
-        </tr>
-    </thead>
-    <tbody>
-        @foreach (var t in Model)
-        {
+@if (myTournaments.Any())
+{
+    <h4 class="mt-4">🎾 Moje rozgrywki</h4>
+    <table class="table table-striped">
+        <thead>
             <tr>
-                <td>@t.Name</td>
-                <td>@t.Start:d</td>
-                <td>@t.End?.ToShortDateString()</td>
-                <td>
-                    <a asp-action="Details" asp-route-id="@t.Id">Szczegóły</a>
-
-                    @if (User.IsInRole("Organizer") || User.IsInRole("Admin"))
-                    {
-                     <a asp-action="Edit"   asp-route-id = "@t.Id" > Edytuj </a>
-                     <a asp-action = "Delete" asp-route-id = "@t.Id" > Usuń </a>
-                    }
-                </td>
+                <th>Nazwa</th>
+                <th>Uczestnicy</th>
+                <th>Status</th>
+                <th>Start</th>
+                <th>Koniec</th>
+                <th></th>
             </tr>
-        }
-    </tbody>
-</table>
+        </thead>
+        <tbody>
+            @foreach (var t in myTournaments)
+            {
+                <tr class="clickable-row" data-href="@Url.Action("Details", "Tournaments", new { id = t.Id })">
+                    <td>@t.Name</td>
+                    <td>@(t.Players?.Count ?? 0) / @(t.MaxPlayers?.ToString() ?? "∞")</td>
+                    <td>
+                        @if (t.IsFinished)
+                        {
+                            <span class="badge bg-danger">Zakończone</span>
+                        }
+                        else if (t.HasStarted)
+                        {
+                            <span class="badge bg-warning text-dark">Trwa</span>
+                        }
+                        else
+                        {
+                            <span class="badge bg-success">Otwarte</span>
+                        }
+                    </td>
+                    <td>@(t.Start?.ToString("d") ?? "-")</td>
+                    <td>@t.End?.ToShortDateString()</td>
+                    <td>
+                        <a asp-action="Details" asp-route-id="@t.Id">Szczegóły</a>
+
+                        @if (!t.HasStarted)
+                        {
+                            <a asp-action="Edit" asp-route-id="@t.Id" class="ms-2">Edytuj</a>
+                            <a asp-action="Delete" asp-route-id="@t.Id" class="ms-2 text-danger">Usuń</a>
+                        }
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@if (otherTournaments.Any())
+{
+    <h4 class="mt-5">🌐 Inne rozgrywki</h4>
+    <table class="table table-striped">
+        <thead>
+            <tr>
+                <th>Nazwa</th>
+                <th>Uczestnicy</th>
+                <th>Status</th>
+                <th>Start</th>
+                <th>Koniec</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var t in otherTournaments)
+            {
+                <tr class="clickable-row" data-href="@Url.Action("Details", "Tournaments", new { id = t.Id })">
+                    
+                    <td>@t.Name</td>
+                    <td>@(t.Players?.Count ?? 0) / @(t.MaxPlayers?.ToString() ?? "∞")</td>
+                    <td>
+                        @if (t.IsFinished)
+                        {
+                            <span class="badge bg-danger">Zakończone</span>
+                        }
+                        else if (t.HasStarted)
+                        {
+                            <span class="badge bg-warning text-dark">Trwa</span>
+                        }
+                        else
+                        {
+                            <span class="badge bg-success">Otwarte</span>
+                        }
+                    </td>
+                    <td>@t.Start:d</td>
+                    <td>@t.End?.ToShortDateString()</td>
+                    <td>
+                        <a asp-action="Details" asp-route-id="@t.Id">Szczegóły</a>
+                        @if (User.IsInRole("Admin") && !t.HasStarted)
+                        {
+                            <a asp-action="Edit" asp-route-id="@t.Id" class="ms-2">Edytuj</a>
+                            <a asp-action="Delete" asp-route-id="@t.Id" class="ms-2 text-danger">Usuń</a>
+                        }
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}

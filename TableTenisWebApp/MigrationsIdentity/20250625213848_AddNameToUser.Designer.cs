@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using TableTenisWebApp.Data;
 
@@ -10,9 +11,11 @@ using TableTenisWebApp.Data;
 namespace TableTenisWebApp.MigrationsIdentity
 {
     [DbContext(typeof(AppIdentityDbContext))]
-    partial class AppIdentityDbContextModelSnapshot : ModelSnapshot
+    [Migration("20250625213848_AddNameToUser")]
+    partial class AddNameToUser
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder.HasAnnotation("ProductVersion", "8.0.4");
@@ -227,7 +230,7 @@ namespace TableTenisWebApp.MigrationsIdentity
                         .ValueGeneratedOnAdd()
                         .HasColumnType("INTEGER");
 
-                    b.Property<DateTime?>("DatePlayed")
+                    b.Property<DateTime>("DatePlayed")
                         .HasColumnType("TEXT");
 
                     b.Property<string>("EnteredByUserId")
@@ -298,17 +301,8 @@ namespace TableTenisWebApp.MigrationsIdentity
                     b.Property<bool>("AllowPlayersEnterScores")
                         .HasColumnType("INTEGER");
 
-                    b.Property<string>("CreatedById")
-                        .HasColumnType("TEXT");
-
                     b.Property<DateTime?>("End")
                         .HasColumnType("TEXT");
-
-                    b.Property<bool>("HasStarted")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<int?>("MaxPlayers")
-                        .HasColumnType("INTEGER");
 
                     b.Property<string>("Name")
                         .IsRequired()
@@ -328,8 +322,6 @@ namespace TableTenisWebApp.MigrationsIdentity
                         .HasColumnType("INTEGER");
 
                     b.HasKey("Id");
-
-                    b.HasIndex("CreatedById");
 
                     b.ToTable("Tournaments");
                 });
@@ -433,15 +425,6 @@ namespace TableTenisWebApp.MigrationsIdentity
                         .OnDelete(DeleteBehavior.SetNull);
 
                     b.Navigation("ApplicationUser");
-                });
-
-            modelBuilder.Entity("TableTenisWebApp.Models.Tournament", b =>
-                {
-                    b.HasOne("TableTenisWebApp.Models.ApplicationUser", "CreatedBy")
-                        .WithMany()
-                        .HasForeignKey("CreatedById");
-
-                    b.Navigation("CreatedBy");
                 });
 
             modelBuilder.Entity("TableTenisWebApp.Models.TournamentPlayer", b =>

@@ -1,36 +1,120 @@
 ﻿@{
-    ViewData["Title"] = "Statystyki ligi";
+    ViewData["Title"] = "TableTenisWebApp";
+    var upcoming = ViewBag.UpcomingTournaments as List<TableTenisWebApp.Models.Tournament> ?? new();
+    var recent = ViewBag.RecentMatches as List<TableTenisWebApp.Models.Match> ?? new();
 }
 
-<h1 class="mb-4">Statystyki ligi</h1>
+<div class="p-5 mb-4 bg-light rounded-3 text-center shadow-sm">
+    <h1 class="display-6 fw-bold">🎯 Witaj w TableTenisWebApp!</h1>
+    <p class="lead mb-4">Organizuj turnieje, rywalizuj i śledź wyniki w jednym miejscu.</p>
+    <a asp-controller="Tournaments" asp-action="Index" class="btn btn-primary btn-lg me-2">Zobacz turnieje</a>
+    <a asp-controller="Players" asp-action="Ranking" class="btn btn-outline-primary btn-lg">Ranking ogólny</a>
+</div>
 
-<div class="row">
-    <div class="col-md-4 mb-3">
-        <div class="card text-center">
+<div class="row text-center mb-4">
+    <div class="col-md-3 mb-3">
+        <div class="card shadow-sm">
             <div class="card-body">
-                <h2>@ViewBag.PlayersCount</h2>
-                <p class="mb-0">Zawodników</p>
+                <h2 class="fw-bold">@ViewBag.PlayersCount</h2>
+                <p class="mb-0 text-muted">Zawodników</p>
             </div>
         </div>
     </div>
-    <div class="col-md-4 mb-3">
-        <div class="card text-center">
+    <div class="col-md-3 mb-3">
+        <div class="card shadow-sm">
             <div class="card-body">
-                <h2>@ViewBag.MatchesCount</h2>
-                <p class="mb-0">Meczów rozegranych</p>
+                <h2 class="fw-bold">@ViewBag.MatchesCount</h2>
+                <p class="mb-0 text-muted">Rozegranych meczów</p>
             </div>
         </div>
     </div>
-    <div class="col-md-4 mb-3">
-        <div class="card text-center">
+    <div class="col-md-3 mb-3">
+        <div class="card shadow-sm">
             <div class="card-body">
-                <h4 class="fw-bold mb-2">Najlepszy zawodnik</h4>
-                <p>
-                    @ViewBag.BestPlayer
-                    <br />
-                    <span class="text-muted">Wygrane mecze: @ViewBag.BestPlayerWins</span>
-                </p>
+                <h2 class="fw-bold">@ViewBag.TournamentsCount</h2>
+                <p class="mb-0 text-muted">Aktywnych turniejów</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3 mb-3">
+        <div class="card shadow-sm">
+            <div class="card-body">
+                <h5 class="fw-bold mb-1">Najlepszy zawodnik</h5>
+                <p class="mb-0">@ViewBag.BestPlayer</p>
+                <small class="text-muted">Wygrane: @ViewBag.BestPlayerWins</small>
             </div>
         </div>
     </div>
 </div>
+
+@if (upcoming.Any())
+{
+    <h3 class="mt-4">📢 Otwarte turnieje (zapisy trwają)</h3>
+    <div class="row">
+        @foreach (var t in upcoming)
+        {
+            <div class="col-md-4 mb-3">
+                <div class="card h-100 shadow-sm">
+                    <div class="card-body">
+                        <h5 class="card-title mb-1">@t.Name</h5>
+                        <p class="mb-2 text-muted">
+                            Limit: @(t.MaxPlayers?.ToString() ?? "∞") | Zapisanych: @(t.Players?.Count ?? 0)
+                        </p>
+                        <a asp-controller="Tournaments" asp-action="Details" asp-route-id="@t.Id" class="btn btn-sm btn-primary">
+                            Szczegóły i zapis
+                        </a>
+                    </div>
+                </div>
+            </div>
+        }
+    </div>
+}
+else
+{
+    <div class="empty">Brak otwartych turniejów.</div>
+}
+
+
+@if (recent.Any())
+{
+    <h3 class="mt-5">🏓 Ostatnie mecze</h3>
+    <table class="table table-striped">
+        <thead>
+            <tr>
+                <th>Data</th>
+                <th>Zawodnik 1</th>
+                <th>Wynik</th>
+                <th>Zawodnik 2</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var m in recent)
+            {
+                <tr class="clickable-row" data-href="@Url.Action("Details", "Matches", new { id = m.Id })">
+                    <td>@(m.DatePlayed?.ToString("yyyy-MM-dd") ?? "-")</td>
+                    <td>@m.Player1?.Name</td>
+                    <td>@m.Score1 : @m.Score2</td>
+                    <td>@m.Player2?.Name</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+else
+{
+    <div class="empty">Brak ostatnich meczów do wyświetlenia.</div>
+}
+
+@section Scripts {
+    <script>
+        document.addEventListener("DOMContentLoaded", function () {
+            document.querySelectorAll(".clickable-row").forEach(function (row) {
+                row.addEventListener("click", function (e) {
+                    if (e.target.tagName.toLowerCase() === 'a' || e.target.closest('button')) return;
+                    window.location = this.dataset.href;
+                });
+                row.style.cursor = "pointer";
+            });
+        });
+    </script>
+}

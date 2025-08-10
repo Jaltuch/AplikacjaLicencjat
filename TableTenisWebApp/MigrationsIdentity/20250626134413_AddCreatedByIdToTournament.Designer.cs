@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using TableTenisWebApp.Data;
 
@@ -10,9 +11,11 @@ using TableTenisWebApp.Data;
 namespace TableTenisWebApp.MigrationsIdentity
 {
     [DbContext(typeof(AppIdentityDbContext))]
-    partial class AppIdentityDbContextModelSnapshot : ModelSnapshot
+    [Migration("20250626134413_AddCreatedByIdToTournament")]
+    partial class AddCreatedByIdToTournament
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder.HasAnnotation("ProductVersion", "8.0.4");
@@ -227,7 +230,7 @@ namespace TableTenisWebApp.MigrationsIdentity
                         .ValueGeneratedOnAdd()
                         .HasColumnType("INTEGER");
 
-                    b.Property<DateTime?>("DatePlayed")
+                    b.Property<DateTime>("DatePlayed")
                         .HasColumnType("TEXT");
 
                     b.Property<string>("EnteredByUserId")
@@ -303,12 +306,6 @@ namespace TableTenisWebApp.MigrationsIdentity
 
                     b.Property<DateTime?>("End")
                         .HasColumnType("TEXT");
-
-                    b.Property<bool>("HasStarted")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<int?>("MaxPlayers")
-                        .HasColumnType("INTEGER");
 
                     b.Property<string>("Name")
                         .IsRequired()

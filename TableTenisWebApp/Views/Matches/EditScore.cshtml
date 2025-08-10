@@ -1,0 +1,37 @@
+﻿@model TableTenisWebApp.Models.Match
+
+@{
+    ViewData["Title"] = "Edytuj wynik";
+}
+
+<h3>Edytuj wynik meczu</h3>
+
+<div class="mb-3">
+    <strong>@Model.Player1.ApplicationUser.FirstName @Model.Player1.ApplicationUser.LastName</strong>
+    vs
+    <strong>@Model.Player2.ApplicationUser.FirstName @Model.Player2.ApplicationUser.LastName</strong>
+</div>
+
+<form asp-action="EditScore" method="post">
+    <input type="hidden" asp-for="Id" />
+
+    <div class="row g-2 mb-3">
+        <div class="col">
+            <label class="form-label">Wynik zawodnika 1</label>
+            <input name="score1" type="number" class="form-control" value="@Model.Score1" required />
+        </div>
+        <div class="col">
+            <label class="form-label">Wynik zawodnika 2</label>
+            <input name="score2" type="number" class="form-control" value="@Model.Score2" required />
+        </div>
+    </div>
+
+    <button type="submit" class="btn btn-primary">💾 Zapisz wynik (bez zatwierdzenia)</button>
+</form>
+
+<form asp-action="ApproveMatch" method="post" class="mt-2">
+    <input type="hidden" name="id" value="@Model.Id" />
+    <button type="submit" class="btn btn-success">✅ Zatwierdź mecz</button>
+</form>
+
+<a asp-action="ReviewMatches" asp-route-tournamentId="@Model.TournamentId" class="btn btn-secondary mt-3">↩ Powrót</a>

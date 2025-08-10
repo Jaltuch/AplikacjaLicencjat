@@ -5,6 +5,11 @@
 @using Microsoft.AspNetCore.Mvc.Razor
 @inject UserManager<ApplicationUser> UserManager
 @inject SignInManager<ApplicationUser> SignInManager
+@{
+    var currentUserId = UserManager.GetUserId(User);
+    var isOwner = Model.CreatedById == currentUserId;
+}
+
 
 
 @if (TempData["Err"] is string err)
@@ -22,10 +27,43 @@
 }
 
 <h2>@Model.Name</h2>
-<p>Od @Model.Start:d @(Model.End is not null ? $"do {Model.End:d}" : "")</p>
+@{
+    string statusText;
+    string statusClass;
+
+    if (Model.IsFinished)
+    {
+        statusText = "Zakończone";
+        statusClass = "bg-danger";
+    }
+    else if (Model.HasStarted)
+    {
+        statusText = "Trwa";
+        statusClass = "bg-warning text-dark";
+    }
+    else
+    {
+        statusText = "Otwarte";
+        statusClass = "bg-success";
+    }
+}
+
+<span class="badge @statusClass">@statusText</span>
+
+<p>
+    <strong>Data rozpoczęcia:</strong>
+    @(Model.Start is not null ? Model.Start.Value.ToString("dd.MM.yyyy HH:mm") : "jeszcze nie rozpoczęto")<br />
+    <strong>Data zakończenia:</strong>
+    @(Model.End is not null ? Model.End.Value.ToString("dd.MM.yyyy HH:mm") : "jeszcze nie zakończono")
+</p>
+
 <p>
     <span class="badge bg-primary">Typ: @Model.Type</span>
 </p>
+<p><strong>Limit graczy:</strong> @(Model.MaxPlayers is int val ? val.ToString() : "brak")</p>
+
+
+
 <!------------- ZWYCIĘZCA ------------>
 @{
     var totalMatches = Model.Matches.Count(m => m.Player1Id != m.Player2Id);
@@ -70,7 +108,10 @@
                 <tr class="@(isFirst ? "table-warning fw-bold" : "")">
                     <td>@(i + 1)</td>
                     <td>
-                        @r.Name
+                        <a asp-controller="Players" asp-action="Details" asp-route-id="@r.PlayerId"
+                           class="entity-link">
+                            @r.Name
+                        </a>
                         @if (isFirst)
                         {
                             <span title="Lider" class="ms-1">🏆</span>
@@ -92,20 +133,29 @@
 <!------------- UCZESTNICY ------------>
 <h4>Uczestnicy (@Model.Players.Count)</h4>
 <ul>
-    @foreach (var tp in Model.Players.OrderBy(p => p.Player.Name))
+    @foreach (var tp in Model.Players
+    .Where(p => p.Player?.ApplicationUser != null)
+    .OrderBy(p => p.Player.ApplicationUser.LastName)
+    .ThenBy(p => p.Player!.ApplicationUser!.FirstName))
     {
-        <li>@tp.Player.Name</li>
+        <li>
+            <a asp-controller="Players" asp-action="Details" asp-route-id="@tp.PlayerId"
+               class="entity-link">
+                @tp.Player?.ApplicationUser?.FirstName @tp.Player?.ApplicationUser?.LastName
+            </a>
+        </li>
+
     }
 </ul>
-@if ((User.IsInRole("Organizer") || User.IsInRole("Admin")) && !Model.Matches.Any())
+@if ((User.IsInRole("Organizer") || User.IsInRole("Admin"))
+   && Model.HasStarted
+   && !Model.Matches.Any())
 {
-    <form asp-action="Generate" method="post" class="mb-3">
-        <input type="hidden" name="id" value="@Model.Id" />
-        <button type="submit" class="btn btn-success">
-            🔄 Generuj terminarz
-        </button>
+    <form asp-action="Generate" asp-route-id="@Model.Id" method="post">
+        <button type="submit" class="btn btn-primary">Generuj terminarz</button>
     </form>
 }
+
 
 <!------------- GENEROWANIE DRABINKI ------------>
 @if ((User.IsInRole("Organizer") || User.IsInRole("Admin"))
@@ -172,15 +222,31 @@
         <tbody>
             @foreach (var m in group)
             {
-                <tr>
+                <tr class="clickable-row" data-href="@Url.Action("Details", "Matches", new { id = m.Id })">
+                    
                     <td>
                         @if (m.Player1Id == m.Player2Id)
                         {
-                            <span>@m.Player1?.Name – <em>wolny los</em></span>
+                            <span>
+                                <a asp-controller="Players" asp-action="Details" asp-route-id="@m.Player1Id"
+                                class="entity-link">
+                                @m.Player1?.ApplicationUser?.FirstName @m.Player1?.ApplicationUser?.LastName – <em>wolny los</em>
+                                </a>
+                            </span>
                         }
                         else
                         {
-                            <span>@m.Player1?.Name – @m.Player2?.Name</span>
+                            <span>
+                                <a asp-controller="Players" asp-action="Details" asp-route-id="@m.Player1Id"
+                                   class="entity-link">
+                                    @m.Player1?.ApplicationUser?.FirstName @m.Player1?.ApplicationUser?.LastName
+                                </a> –
+                                <a asp-controller="Players" asp-action="Details" asp-route-id="@m.Player2Id"
+                                   class="entity-link">
+                                    @m.Player2?.ApplicationUser?.FirstName @m.Player2?.ApplicationUser?.LastName
+                                </a>
+                            </span>
+
                         }
                     </td>
                     <td>
@@ -190,16 +256,29 @@
                         }
                         else
                         {
-                            <span>@m.Score1 : @m.Score2</span>
-                            @if (!m.IsApproved)
+                            @if (m.Score1 + m.Score2 == 0)
                             {
-                                <small class="text-warning">(niezatw.)</small>
+                                <span><em>brak wyniku</em></span>
                             }
+                            else
+                            {
+                                <span>@m.Score1 : @m.Score2</span>
+                                @if (!m.IsApproved)
+                                {
+                                    <span class="badge bg-warning text-dark ms-2"> Oczekuje na zatwierdzenie</span>
+                                }
+                                else
+                                {
+                                    <span class="badge bg-success text-light ms-2"> Zatwierdzony</span>
+                                }
+                            }
+
                         }
                     </td>
-                    <td>@m.DatePlayed:d</td>
+                    <td>@(m.DatePlayed is null ? "-" : m.DatePlayed.Value.ToString("d"))</td>
+
                     <td>
-                        @if (m.Score1 + m.Score2 == 0 &&
+                        @if (!m.IsApproved &&
                       (
                       User.IsInRole("Admin") ||
                       User.IsInRole("Organizer") ||
@@ -220,6 +299,42 @@
 }
 
 
+@if (User.IsInRole("Player") && SignInManager.IsSignedIn(User) && Model.IsOpenForSignup)
+{
+    var userId = UserManager.GetUserId(User);
+    var alreadyJoined = Model.Players.Any(p => p.Player?.ApplicationUserId == userId);
+
+    if (!alreadyJoined)
+    {
+        <form asp-action="Signup" asp-controller="Tournaments" asp-route-id="@Model.Id" method="post">
+            <button type="submit" class="btn btn-success">✍ Zapisz się do turnieju</button>
+        </form>
+    }
+    else
+    {
+        <div class="alert alert-info w-50">
+            ✅ Jesteś zapisany do tego turnieju.
+        </div>
+    }
+}
+
+@if (User.IsInRole("Player"))
+{
+    var userId = UserManager.GetUserId(User);
+    var player = Model.Players.FirstOrDefault(p => p.Player.ApplicationUserId == userId);
+
+    if (player != null && Model.IsOpenForSignup)
+    {
+        <form asp-action="Withdraw" asp-controller="Tournaments" asp-route-id="@Model.Id" method="post">
+            <button type="submit" class="btn btn-outline-danger">Wypisz się z turnieju</button>
+        </form>
+    }
+}
+
+
+
+
+
 
 
 
@@ -228,12 +343,38 @@
 
 
 <!------------- AKCJE ADMINA/ORGANIZATORA ------------>
-@if (User.IsInRole("Organizer") || User.IsInRole("Admin"))
+@if ((User.IsInRole("Admin") || (User.IsInRole("Organizer") && isOwner))&& !Model.HasStarted)
 {
     <p>
         <a asp-action="Edit" asp-route-id="@Model.Id" class="btn btn-warning">Edytuj</a>
         <a asp-action="Delete" asp-route-id="@Model.Id" class="btn btn-danger">Usuń</a>
     </p>
 }
+@if ((User.IsInRole("Organizer") && Model.CreatedById == UserManager.GetUserId(User)) || User.IsInRole("Admin"))
+{
+    if (!Model.HasStarted)
+    {
+        <form asp-action="StartTournament" method="post" class="d-inline">
+            <input type="hidden" name="id" value="@Model.Id" />
+            <button class="btn btn-outline-success">
+                ▶ Rozpocznij rozgrywkę
+            </button>
+        </form>
+    }
+}
+
+
+
+
+@if (User.IsInRole("Admin") ||
+   (User.IsInRole("Organizer") && Model.CreatedById == currentUserId))
+{
+    <a asp-controller="Matches" asp-action="ReviewMatches" asp-route-tournamentId="@Model.Id" class="btn btn-outline-secondary">
+        ✅ Zatwierdź wyniki
+    </a>
+}
+
+
+
 
 <a asp-action="Index">↩︎ Lista turniejów</a>

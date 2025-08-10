@@ -40,9 +40,9 @@ namespace TableTenisWebApp.Models
         public string? SetScores { get; set; } // np. "11:8;8:11;11:9"
 
 
-        [Required(ErrorMessage = "Data rozegrania meczu jest wymagana")]
+        
         [DataType(DataType.Date)]
         [Display(Name = "Data meczu")]
-        public DateTime DatePlayed { get; set; } = DateTime.Now;
+        public DateTime? DatePlayed { get; set; }
     }
 }

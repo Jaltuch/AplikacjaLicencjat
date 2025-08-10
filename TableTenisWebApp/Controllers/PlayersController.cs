@@ -38,6 +38,7 @@ namespace TableTenisWebApp.Controllers
                 return NotFound();
 
             var player = await _context.Players
+                .Include(p => p.ApplicationUser)
                 .FirstOrDefaultAsync(p => p.Id == id);
             if (player == null)
                 return NotFound();
@@ -46,6 +47,7 @@ namespace TableTenisWebApp.Controllers
             var matches = await _context.Matches
                 .Include(m => m.Player1)
                 .Include(m => m.Player2)
+                .Include(m => m.Tournament)
                 .Where(m => m.Player1Id == id || m.Player2Id == id)
                 .OrderByDescending(m => m.DatePlayed)
                 .ToListAsync();

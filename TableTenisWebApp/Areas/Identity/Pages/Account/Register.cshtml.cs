@@ -56,6 +56,16 @@ public class RegisterModel : PageModel
         [Required, EmailAddress, Display(Name = "Email")]
         public string Email { get; set; }
 
+        [Required, Display(Name = "Imiê")]
+        public string FirstName { get; set; }
+
+        [Required, Display(Name = "Nazwisko")]
+        public string LastName { get; set; }
+
+        [Required, Display(Name = "Rola")]
+        public string Role { get; set; }  // "Player" lub "Organizer"
+
+
         [Required, StringLength(100, MinimumLength = 6),
          DataType(DataType.Password), Display(Name = "Password")]
         public string Password { get; set; }
@@ -84,6 +94,9 @@ public class RegisterModel : PageModel
         var user = CreateUser();
         await _userStore.SetUserNameAsync(user, Input.Email, CancellationToken.None);
         await _emailStore.SetEmailAsync(user, Input.Email, CancellationToken.None);
+        user.FirstName = Input.FirstName;
+        user.LastName = Input.LastName;
+
 
         var result = await _userManager.CreateAsync(user, Input.Password);
         if (!result.Succeeded)
@@ -92,16 +105,17 @@ public class RegisterModel : PageModel
                 ModelState.AddModelError(string.Empty, e.Description);
             return Page();
         }
+        //Role
+        await _userManager.AddToRoleAsync(user, Input.Role);
 
-        // 2) rola Player
-        await _userManager.AddToRoleAsync(user, "Player");
-
-        // 3) rekord Player
-        _ctx.Players.Add(new Player
+        if (Input.Role == "Player")
         {
-            Name = Input.Email.Split('@')[0],
-            ApplicationUserId = user.Id
-        });
+            _ctx.Players.Add(new Player
+            {
+                Name = $"{Input.FirstName} {Input.LastName}",
+                ApplicationUserId = user.Id
+            });
+        }
 
         // 4) JEDEN commit – zapisuje AspNetUsers, AspNetUserRoles i Players
         await _ctx.SaveChangesAsync();

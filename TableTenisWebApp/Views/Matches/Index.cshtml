@@ -56,7 +56,7 @@
                         }
                     }
                 </td>
-                <td>@item.DatePlayed.ToString("yyyy-MM-dd")</td>
+                <td>@item.DatePlayed?.ToString("yyyy-MM-dd")</td>
                 <td>
                     <a asp-action="Edit" asp-route-id="@item.Id">Edytuj</a> |
                     <a asp-action="Details" asp-route-id="@item.Id">Szczegóły</a> |

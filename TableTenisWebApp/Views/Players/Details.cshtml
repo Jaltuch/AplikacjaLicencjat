@@ -9,6 +9,7 @@
     int setsLost = ViewBag.SetsLost;
 }
 
+
 <h2>@Model.Name</h2>
 
 <table class="table table-bordered w-auto">
@@ -39,36 +40,51 @@
                 <th>Data</th>
                 <th>Przeciwnik</th>
                 <th>Wynik</th>
-                <th>Sety</th>
+                <th>Turniej</th>
+                <th></th>
             </tr>
         </thead>
         <tbody>
             @foreach (var match in matches)
             {
-                var opponent = match.Player1Id == Model.Id ? match.Player2?.Name : match.Player1?.Name;
-                var myScore = match.Player1Id == Model.Id ? match.Score1 : match.Score2;
-                var oppScore = match.Player1Id == Model.Id ? match.Score2 : match.Score1;
-                <tr>
-                    <td>@match.DatePlayed.ToString("yyyy-MM-dd")</td>
-                    <td>@opponent</td>
+                var isPlayer1 = match.Player1Id == Model.Id;
+                var opponent = isPlayer1 ? match.Player2 : match.Player1;
+                var myScore = isPlayer1 ? match.Score1 : match.Score2;
+                var oppScore = isPlayer1 ? match.Score2 : match.Score1;
+
+                <tr class="clickable-row" data-href="@Url.Action("Details", "Matches", new { id = match.Id })">
+                    <td>@match.DatePlayed?.ToString("yyyy-MM-dd")</td>
+                    <td>
+                        @if (opponent != null)
+                        {
+                            <a asp-controller="Players" asp-action="Details" asp-route-id="@opponent.Id" class="entity-link">
+                                @opponent.Name
+                            </a>
+
+                        }
+                        else
+                        {
+                            <span>Nieznany</span>
+                        }
+                    </td>
                     <td>
                         <span class="fw-bold @(myScore > oppScore ? "text-success" : "text-danger")">
                             @myScore : @oppScore
                         </span>
                     </td>
                     <td>
-                        @{
-                            var sety = match.SetScores?.Split(';', StringSplitOptions.RemoveEmptyEntries);
-                            if (sety != null)
-                            {
-                                for (int i = 0; i < sety.Length; i++)
-                                {
-                                    @sety[i]
+                        @if (match.Tournament != null)
+                        {
+                            <a asp-controller="Tournaments" asp-action="Details" asp-route-id="@match.Tournament.Id" class="entity-link">
+                                @match.Tournament.Name
+                            </a>
 
-                                    @((i < sety.Length - 1) ? ", " : "")
-                                }
-                            }
                         }
+                    </td>
+                    <td>
+                        <a asp-controller="Matches" asp-action="Details" asp-route-id="@match.Id" class="btn btn-sm btn-outline-primary">
+                            Szczegóły
+                        </a>
                     </td>
                 </tr>
             }
@@ -80,4 +96,30 @@ else
     <p>Brak rozegranych meczów.</p>
 }
 
-<a asp-action="Index" class="btn btn-outline-secondary">Powrót do listy zawodników</a>
+@{
+    string backUrl = null;
+
+    var refererRaw = Context.Request.Headers["Referer"].ToString();
+    if (!string.IsNullOrEmpty(refererRaw))
+    {
+        if (Uri.TryCreate(refererRaw, UriKind.Absolute, out var refUri))
+        {
+            var req = Context.Request;
+            var sameHost = string.Equals(refUri.Host, req.Host.Host, StringComparison.OrdinalIgnoreCase);
+            if (sameHost)
+            {
+                backUrl = refUri.PathAndQuery;
+            }
+        }
+        else if (Url.IsLocalUrl(refererRaw))
+        {
+            backUrl = refererRaw;
+        }
+    }
+}
+
+@if (!string.IsNullOrEmpty(backUrl))
+{
+    <a href="@backUrl" class="btn btn-outline-secondary">↩ Wróć</a>
+}
+
